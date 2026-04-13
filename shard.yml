@@ -1,0 +1,17 @@
+name: infinite_canvas
+version: 0.1.0
+
+authors:
+  - you
+
+targets:
+  infinite_canvas:
+    main: src/infinite_canvas.cr
+
+crystal: ">= 1.10.0"
+
+license: MIT
+
+dependencies:
+  raylib-cr:
+    github: sol-vin/raylib-cr

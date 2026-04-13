@@ -1,0 +1,11 @@
+/docs/
+/lib/
+/bin/
+/.shards/
+*.dwarf
+shard.lock
+.claude/
+/local/
+/raylib/
+canvas.json
+

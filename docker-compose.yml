@@ -1,0 +1,17 @@
+# docker-compose.yml
+services:
+  claude:
+    image: claude:dev
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    security_opt:
+      - seccomp=unconfined
+    volumes:
+      - .:/workspace
+      - claude-config:/home/claude/
+    # Run the firewall on startup, then drop into a shell
+    entrypoint: ["/bin/sh", "-c", "sudo /usr/local/bin/init-firewall.sh && exec zsh"]
+
+volumes:
+  claude-config:
