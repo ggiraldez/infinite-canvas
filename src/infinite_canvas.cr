@@ -38,8 +38,8 @@ module InfiniteCanvas
   end
 
   private def self.draw_hud(canvas : Canvas)
-    R.draw_text("Draw: left-drag empty   Select/Move: click/drag rect   Resize: drag handle   Delete: Del", 12, 12, 18, R::DARKGRAY)
-    R.draw_text("Pan: right/middle-drag   Zoom: wheel   Elements: #{canvas.elements.size}   Zoom: #{canvas.camera.zoom.round(2)}", 12, 36, 16, R::GRAY)
+    R.draw_text("Draw: left-drag empty   Select/Move: click/drag rect   Resize: drag handle   Delete: Del", 12, 12, 20, R::DARKGRAY)
+    R.draw_text("Pan: right/middle-drag   Zoom: wheel   Elements: #{canvas.elements.size}   Zoom: #{canvas.camera.zoom.round(2)}", 12, 36, 20, R::GRAY)
   end
 end
 
