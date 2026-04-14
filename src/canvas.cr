@@ -13,6 +13,8 @@ class Canvas
   DRAFT_STROKE     = R::Color.new(r: 30, g: 60, b: 120, a: 200)
   SEL_COLOR        = R::Color.new(r: 0, g: 120, b: 255, a: 255)
   HANDLE_SIZE      =   8.0_f32 # constant screen-space pixels
+  DEFAULT_RECT_W   = 160.0_f32 # default width when a rect is created by click
+  DEFAULT_RECT_H   = 100.0_f32 # default height when a rect is created by click
   SAVE_FILE        = "canvas.json"
   # Discrete zoom steps: a geometric series of 2^(i/4) filtered to [0.1, 10.0].
   # Four steps per octave gives smooth scrolling while guaranteeing that every
@@ -48,6 +50,9 @@ class Canvas
   # Drawing state
   @draw_start : R::Vector2?
   @draw_current : R::Vector2?
+  # True when drawing started while an element was selected; a click (no drag)
+  # in that case should deselect rather than create a new element.
+  @draw_started_with_selection : Bool = false
 
   # Move / resize state
   @drag_start_mouse : R::Vector2?
@@ -164,17 +169,21 @@ class Canvas
       elsif (idx = hit_test_element(mouse_world))
         # Select element and begin move. Clean up any empty text node that was
         # previously selected; if it sat before the new target, shift the index.
-        if (removed_at = cleanup_empty_text_selection) && idx > removed_at
-          idx -= 1
+        # If the clicked element *was* the empty text node, skip selection entirely.
+        removed_at = cleanup_empty_text_selection
+        unless removed_at == idx
+          idx -= 1 if removed_at && idx > removed_at
+          @selected_index = idx
+          @drag_mode = DragMode::Moving
+          @drag_start_mouse = mouse_world
+          @drag_start_bounds = @elements[idx].bounds
         end
-        @selected_index = idx
-        @drag_mode = DragMode::Moving
-        @drag_start_mouse = mouse_world
-        @drag_start_bounds = @elements[idx].bounds
       else
-        # Click on empty space: deselect (removing any empty text node) and
-        # start drawing.
+        # Click/drag on empty space: always enter Drawing mode so a drag creates
+        # an element immediately. Remember whether there was a selection so a
+        # plain click (no drag) can deselect instead of creating an element.
         cleanup_empty_text_selection
+        @draw_started_with_selection = @selected_index != nil
         @selected_index = nil
         @drag_mode = DragMode::Drawing
         @draw_start = mouse_world
@@ -205,12 +214,26 @@ class Canvas
     elsif R.mouse_button_released?(R::MouseButton::Left)
       if @drag_mode.drawing?
         if (start = @draw_start) && (current = @draw_current)
-          rect = rect_from_points(start, current)
-          if rect.width >= 4.0_f32 && rect.height >= 4.0_f32
-            el = case @active_tool
-                 in ActiveTool::Rect then RectElement.new(rect)
-                 in ActiveTool::Text then TextElement.new(rect)
-                 end
+          dragged = rect_from_points(start, current)
+          is_drag = dragged.width >= 4.0_f32 || dragged.height >= 4.0_f32
+          # A click (no meaningful drag) that started over a selection just
+          # deselects — don't create a new element.
+          unless !is_drag && @draw_started_with_selection
+            el = if is_drag
+              case @active_tool
+              in ActiveTool::Rect then RectElement.new(dragged)
+              in ActiveTool::Text then TextElement.new(dragged)
+              end
+            else
+              case @active_tool
+              in ActiveTool::Rect
+                RectElement.new(R::Rectangle.new(x: start.x, y: start.y,
+                                                 width: DEFAULT_RECT_W, height: DEFAULT_RECT_H))
+              in ActiveTool::Text
+                TextElement.new(R::Rectangle.new(x: start.x, y: start.y,
+                                                 width: 0.0_f32, height: 0.0_f32))
+              end
+            end
             el.fit_content
             @elements << el
             @selected_index = @elements.size - 1
@@ -218,6 +241,7 @@ class Canvas
         end
         @draw_start = nil
         @draw_current = nil
+        @draw_started_with_selection = false
       end
       @drag_mode = DragMode::None
       @drag_start_mouse = nil
