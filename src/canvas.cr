@@ -14,6 +14,13 @@ class Canvas
   SEL_COLOR        = R::Color.new(r: 0, g: 120, b: 255, a: 255)
   HANDLE_SIZE      =   8.0_f32 # constant screen-space pixels
   SAVE_FILE        = "canvas.json"
+  # Discrete zoom steps: a geometric series of 2^(i/4) filtered to [0.1, 10.0].
+  # Four steps per octave gives smooth scrolling while guaranteeing that every
+  # exact power of two (0.125, 0.25, 0.5, 1.0, 2.0, 4.0, 8.0) is always
+  # reachable — they fall on multiples of 4 quarter-octave steps.
+  ZOOM_LEVELS = (-14..14)
+    .map { |i| 2.0_f32 ** (i.to_f32 * 0.25_f32) }
+    .select { |z| z >= 0.1_f32 && z <= 10.0_f32 }
 
   enum DragMode
     None
@@ -129,8 +136,11 @@ class Canvas
     mouse_screen = R.get_mouse_position
     world_before = R.get_screen_to_world_2d(mouse_screen, @camera)
 
-    zoom_factor = 1.0_f32 + wheel * 0.1_f32
-    new_zoom = (@camera.zoom * zoom_factor).clamp(0.1_f32, 10.0_f32)
+    new_zoom = if wheel > 0
+      ZOOM_LEVELS.find { |z| z > @camera.zoom } || ZOOM_LEVELS.last
+    else
+      ZOOM_LEVELS.reverse.find { |z| z < @camera.zoom } || ZOOM_LEVELS.first
+    end
     @camera.zoom = new_zoom
 
     world_after = R.get_screen_to_world_2d(mouse_screen, @camera)
