@@ -30,6 +30,7 @@ struct RectElementData
   property fill : ColorData
   property stroke : ColorData
   property stroke_width : Float32
+  property label : String?
 
   def initialize(e : RectElement)
     b = e.bounds
@@ -37,11 +38,12 @@ struct RectElementData
     @fill         = ColorData.new(e.fill)
     @stroke       = ColorData.new(e.stroke)
     @stroke_width = e.stroke_width
+    @label        = e.label
   end
 
   def to_element : RectElement
     bounds = R::Rectangle.new(x: @x, y: @y, width: @width, height: @height)
-    RectElement.new(bounds, @fill.to_raylib, @stroke.to_raylib, @stroke_width)
+    RectElement.new(bounds, @fill.to_raylib, @stroke.to_raylib, @stroke_width, @label || "")
   end
 end
 

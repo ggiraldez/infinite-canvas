@@ -69,6 +69,7 @@ class Canvas
     handle_pan
     handle_zoom
     handle_left_mouse
+    handle_text_input
     handle_delete
   end
 
@@ -172,9 +173,29 @@ class Canvas
     end
   end
 
+  private def handle_text_input
+    return unless (idx = @selected_index)
+    return unless (el = @elements[idx]).is_a?(RectElement)
+
+    # Append any queued printable characters.
+    while (ch = R.get_char_pressed) > 0
+      el.label += ch.chr.to_s
+    end
+
+    # Backspace: trim label, or delete element when label is already empty.
+    if R.key_pressed?(R::KeyboardKey::Backspace)
+      if el.label.empty?
+        @elements.delete_at(idx)
+        @selected_index = nil
+      else
+        el.label = el.label.rchop
+      end
+    end
+  end
+
   private def handle_delete
     return unless (idx = @selected_index)
-    if R.key_pressed?(R::KeyboardKey::Delete) || R.key_pressed?(R::KeyboardKey::Backspace)
+    if R.key_pressed?(R::KeyboardKey::Delete)
       @elements.delete_at(idx)
       @selected_index = nil
     end
@@ -275,6 +296,17 @@ class Canvas
       hr = R::Rectangle.new(x: center.x - half, y: center.y - half, width: hs, height: hs)
       R.draw_rectangle_rec(hr, R::WHITE)
       R.draw_rectangle_lines_ex(hr, 1.5_f32 / @camera.zoom, SEL_COLOR)
+    end
+
+    # Blinking text cursor shown while a RectElement is selected.
+    if (el = @elements[idx]).is_a?(RectElement)
+      if (R.get_time * 2.0).to_i % 2 == 0
+        fs = RectElement::LABEL_FONT_SIZE
+        tw = R.measure_text(el.label, fs)
+        cx = (bounds.x + (bounds.width + tw) / 2.0_f32).to_i
+        cy = (bounds.y + (bounds.height - fs) / 2.0_f32).to_i
+        R.draw_text("|", cx, cy, fs, RectElement::LABEL_COLOR)
+      end
     end
   end
 
