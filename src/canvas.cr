@@ -150,7 +150,10 @@ class Canvas
         end
       when DragMode::Resizing
         if (idx = @selected_index) && (h = @active_handle) && (sm = @drag_start_mouse) && (sb = @drag_start_bounds)
-          @elements[idx].bounds = apply_resize(h, sb, sm, mouse_world)
+          el = @elements[idx]
+          min_w = el.is_a?(RectElement) ? el.label_min_width : 4.0_f32
+          min_h = el.is_a?(RectElement) ? el.label_min_height : 4.0_f32
+          el.bounds = apply_resize(h, sb, sm, mouse_world, min_w, min_h)
         end
       end
 
@@ -183,24 +186,21 @@ class Canvas
     end
 
     # Enter inserts a newline.
-    if R.key_pressed?(R::KeyboardKey::Enter)
+    if R.key_pressed?(R::KeyboardKey::Enter) || R.key_pressed_repeat?(R::KeyboardKey::Enter)
       el.label += "\n"
     end
 
-    # Backspace: trim label, or delete element when label is already empty.
-    if R.key_pressed?(R::KeyboardKey::Backspace)
-      if el.label.empty?
-        @elements.delete_at(idx)
-        @selected_index = nil
-      else
-        el.label = el.label.rchop
-      end
+    # Backspace: trim the last character from the label (no-op when already empty).
+    if R.key_pressed?(R::KeyboardKey::Backspace) || R.key_pressed_repeat?(R::KeyboardKey::Backspace)
+      el.label = el.label.rchop
     end
+
+    el.fit_label
   end
 
   private def handle_delete
     return unless (idx = @selected_index)
-    if R.key_pressed?(R::KeyboardKey::Delete)
+    if R.key_pressed?(R::KeyboardKey::Delete) || R.key_pressed_repeat?(R::KeyboardKey::Delete)
       @elements.delete_at(idx)
       @selected_index = nil
     end
@@ -244,37 +244,30 @@ class Canvas
   end
 
   # Compute new bounds after dragging *handle* from *sm* to *mouse*.
-  private def apply_resize(handle : Handle, orig : R::Rectangle, sm : R::Vector2, mouse : R::Vector2) : R::Rectangle
+  # *min_w* / *min_h* set the smallest allowed dimensions (e.g. label footprint).
+  private def apply_resize(handle : Handle, orig : R::Rectangle, sm : R::Vector2, mouse : R::Vector2,
+                           min_w : Float32 = 4.0_f32, min_h : Float32 = 4.0_f32) : R::Rectangle
     dx = mouse.x - sm.x
     dy = mouse.y - sm.y
     x, y, w, h = orig.x, orig.y, orig.width, orig.height
-    min = 4.0_f32
 
-    # Left edge (NW, W, SW)
+    # Left edge (NW, W, SW) — clamp width and keep right edge fixed.
     if handle.nw? || handle.w? || handle.sw?
-      new_w = orig.width - dx
-      if new_w >= min
-        x = orig.x + dx
-        w = new_w
-      end
+      w = (orig.width - dx).clamp(min_w, Float32::MAX)
+      x = orig.x + orig.width - w
     end
-    # Right edge (NE, E, SE)
+    # Right edge (NE, E, SE) — clamp width, left edge stays.
     if handle.ne? || handle.e? || handle.se?
-      new_w = orig.width + dx
-      w = new_w if new_w >= min
+      w = (orig.width + dx).clamp(min_w, Float32::MAX)
     end
-    # Top edge (NW, N, NE)
+    # Top edge (NW, N, NE) — clamp height and keep bottom edge fixed.
     if handle.nw? || handle.n? || handle.ne?
-      new_h = orig.height - dy
-      if new_h >= min
-        y = orig.y + dy
-        h = new_h
-      end
+      h = (orig.height - dy).clamp(min_h, Float32::MAX)
+      y = orig.y + orig.height - h
     end
-    # Bottom edge (SW, S, SE)
+    # Bottom edge (SW, S, SE) — clamp height, top edge stays.
     if handle.sw? || handle.s? || handle.se?
-      new_h = orig.height + dy
-      h = new_h if new_h >= min
+      h = (orig.height + dy).clamp(min_h, Float32::MAX)
     end
 
     R::Rectangle.new(x: x, y: y, width: w, height: h)
