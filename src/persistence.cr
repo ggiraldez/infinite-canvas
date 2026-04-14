@@ -19,10 +19,12 @@ struct ColorData
   end
 end
 
-# JSON-serializable mirror of a RectElement.
-struct RectElementData
+# ─── Concrete data classes ─────────────────────────────────────────────────────
+
+class RectElementData < ElementData
   include JSON::Serializable
 
+  property type : String = "rect"
   property x : Float32
   property y : Float32
   property width : Float32
@@ -33,6 +35,7 @@ struct RectElementData
   property label : String?
 
   def initialize(e : RectElement)
+    @type = "rect"
     b = e.bounds
     @x, @y, @width, @height = b.x, b.y, b.width, b.height
     @fill         = ColorData.new(e.fill)
@@ -41,18 +44,48 @@ struct RectElementData
     @label        = e.label
   end
 
-  def to_element : RectElement
+  def to_element : Element
     bounds = R::Rectangle.new(x: @x, y: @y, width: @width, height: @height)
     RectElement.new(bounds, @fill.to_raylib, @stroke.to_raylib, @stroke_width, @label || "")
   end
 end
 
-# Top-level save file structure.
-struct CanvasSaveData
+class TextElementData < ElementData
   include JSON::Serializable
 
-  property rects : Array(RectElementData)
+  property type : String = "text"
+  property x : Float32
+  property y : Float32
+  property width : Float32
+  property height : Float32
+  property text : String
 
-  def initialize(@rects : Array(RectElementData))
+  def initialize(e : TextElement)
+    @type = "text"
+    b = e.bounds
+    @x, @y, @width, @height = b.x, b.y, b.width, b.height
+    @text = e.text
+  end
+
+  def to_element : Element
+    bounds = R::Rectangle.new(x: @x, y: @y, width: @width, height: @height)
+    TextElement.new(bounds, @text)
+  end
+end
+
+# ─── Reopen element classes to add persistence (avoids forward references) ────
+
+# to_data is defined here rather than in element.cr so that element.cr stays
+# free of references to the concrete data classes.
+
+class RectElement
+  def to_data : ElementData
+    RectElementData.new(self)
+  end
+end
+
+class TextElement
+  def to_data : ElementData
+    TextElementData.new(self)
   end
 end

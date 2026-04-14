@@ -38,7 +38,7 @@ module InfiniteCanvas
   end
 
   private def self.draw_hud(canvas : Canvas)
-    R.draw_text("Draw: left-drag empty   Select/Move: click/drag rect   Resize: drag handle   Delete: Del", 12, 12, 20, R::DARKGRAY)
+    R.draw_text("Tool: [R]ect  [T]ext  (active: #{canvas.active_tool})   Draw: left-drag   Move/Resize: click/drag   Delete: Del", 12, 12, 20, R::DARKGRAY)
     R.draw_text("Pan: right/middle-drag   Zoom: wheel   Elements: #{canvas.elements.size}   Zoom: #{canvas.camera.zoom.round(2)}", 12, 36, 20, R::GRAY)
     R.draw_fps(R.get_screen_width - 100, R.get_screen_height - 30)
   end

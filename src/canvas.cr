@@ -1,3 +1,4 @@
+require "json"
 require "raylib-cr"
 require "./element"
 require "./persistence"
@@ -25,8 +26,14 @@ class Canvas
     NW; N; NE; E; SE; S; SW; W
   end
 
+  enum ActiveTool
+    Rect
+    Text
+  end
+
   getter elements : Array(Element)
   getter camera : R::Camera2D
+  property active_tool : ActiveTool = ActiveTool::Rect
 
   @drag_mode : DragMode = DragMode::None
   @selected_index : Int32? = nil
@@ -51,16 +58,38 @@ class Canvas
   end
 
   def save
-    rects = @elements.compact_map { |e| RectElementData.new(e) if e.is_a?(RectElement) }
-    File.write(SAVE_FILE, CanvasSaveData.new(rects).to_json)
+    json_str = JSON.build do |json|
+      json.object do
+        json.field "elements" do
+          json.array do
+            @elements.each do |e|
+              case e
+              when RectElement then RectElementData.new(e).to_json(json)
+              when TextElement then TextElementData.new(e).to_json(json)
+              end
+            end
+          end
+        end
+      end
+    end
+    File.write(SAVE_FILE, json_str)
   rescue ex
     STDERR.puts "Warning: could not save canvas — #{ex.message}"
   end
 
   def load
     return unless File.exists?(SAVE_FILE)
-    data = CanvasSaveData.from_json(File.read(SAVE_FILE))
-    @elements = data.rects.map(&.to_element.as(Element))
+    raw = JSON.parse(File.read(SAVE_FILE))
+    # Support legacy "rects" key from older save files (items default to type "rect").
+    items = (raw["elements"]? || raw["rects"]?).try(&.as_a?) || return
+    @elements = items.compact_map do |item|
+      type = item["type"]?.try(&.as_s?) || "rect"
+      data = item.to_json
+      case type
+      when "rect" then RectElementData.from_json(data).to_element.as(Element)
+      when "text" then TextElementData.from_json(data).to_element.as(Element)
+      end
+    end
   rescue ex
     STDERR.puts "Warning: could not load canvas — #{ex.message}"
   end
@@ -71,6 +100,7 @@ class Canvas
     handle_left_mouse
     handle_text_input
     handle_delete
+    handle_tool_switch
   end
 
   def draw
@@ -151,8 +181,7 @@ class Canvas
       when DragMode::Resizing
         if (idx = @selected_index) && (h = @active_handle) && (sm = @drag_start_mouse) && (sb = @drag_start_bounds)
           el = @elements[idx]
-          min_w = el.is_a?(RectElement) ? el.label_min_width : 4.0_f32
-          min_h = el.is_a?(RectElement) ? el.label_min_height : 4.0_f32
+          min_w, min_h = el.min_size
           el.bounds = apply_resize(h, sb, sm, mouse_world, min_w, min_h)
         end
       end
@@ -162,7 +191,11 @@ class Canvas
         if (start = @draw_start) && (current = @draw_current)
           rect = rect_from_points(start, current)
           if rect.width >= 4.0_f32 && rect.height >= 4.0_f32
-            @elements << RectElement.new(rect)
+            el = case @active_tool
+                 in ActiveTool::Rect then RectElement.new(rect)
+                 in ActiveTool::Text then TextElement.new(rect)
+                 end
+            @elements << el
             @selected_index = @elements.size - 1
           end
         end
@@ -178,24 +211,24 @@ class Canvas
 
   private def handle_text_input
     return unless (idx = @selected_index)
-    return unless (el = @elements[idx]).is_a?(RectElement)
+    el = @elements[idx]
 
     # Append any queued printable characters.
     while (ch = R.get_char_pressed) > 0
-      el.label += ch.chr.to_s
+      el.handle_char_input(ch.chr)
     end
 
     # Enter inserts a newline.
     if R.key_pressed?(R::KeyboardKey::Enter) || R.key_pressed_repeat?(R::KeyboardKey::Enter)
-      el.label += "\n"
+      el.handle_enter
     end
 
-    # Backspace: trim the last character from the label (no-op when already empty).
+    # Backspace: trim the last character (no-op when already empty).
     if R.key_pressed?(R::KeyboardKey::Backspace) || R.key_pressed_repeat?(R::KeyboardKey::Backspace)
-      el.label = el.label.rchop
+      el.handle_backspace
     end
 
-    el.fit_label
+    el.fit_content
   end
 
   private def handle_delete
@@ -204,6 +237,14 @@ class Canvas
       @elements.delete_at(idx)
       @selected_index = nil
     end
+  end
+
+  # Switch active tool with R / T. Only active while no element is selected so
+  # the keys are still available for text input when editing.
+  private def handle_tool_switch
+    return if @selected_index
+    @active_tool = ActiveTool::Rect if R.key_pressed?(R::KeyboardKey::R)
+    @active_tool = ActiveTool::Text if R.key_pressed?(R::KeyboardKey::T)
   end
 
   # Returns the index of the topmost element under *mouse_world*, or nil.
@@ -296,19 +337,8 @@ class Canvas
       R.draw_rectangle_lines_ex(hr, 1.5_f32 / @camera.zoom, SEL_COLOR)
     end
 
-    # Blinking text cursor shown while a RectElement is selected.
-    if (el = @elements[idx]).is_a?(RectElement)
-      if (R.get_time * 2.0).to_i % 2 == 0
-        fs = RectElement::LABEL_FONT_SIZE
-        lines = el.label.split('\n')
-        last_line = lines.last
-        tw = R.measure_text(last_line, fs)
-        total_height = lines.size * fs
-        cx = (bounds.x + (bounds.width + tw) / 2.0_f32).to_i
-        cy = (bounds.y + (bounds.height - total_height) / 2.0_f32 + (lines.size - 1) * fs).to_i
-        R.draw_text("|", cx, cy, fs, RectElement::LABEL_COLOR)
-      end
-    end
+    # Blinking text cursor — each element type draws its own cursor.
+    @elements[idx].draw_cursor
   end
 
   private def rect_from_points(a : R::Vector2, b : R::Vector2) : R::Rectangle
