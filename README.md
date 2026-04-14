@@ -1,15 +1,17 @@
 # Infinite Canvas
 
-Crystal + Raylib desktop app: an infinite, pannable/zoomable canvas where you
-can drop elements. Phase 1 supports drawing rectangles.
+Crystal + Raylib desktop app: an infinite, pannable/zoomable canvas for
+sketching diagrams and taking notes. Supports rectangles with editable labels
+and plain text nodes.
 
 ## Prerequisites
 
 - Crystal >= 1.10
 - Raylib 5.0 native library
+- OpenSSL development libraries (required by Crystal's UUID stdlib)
 
-On macOS: `brew install crystal raylib`
-On Arch: `pacman -S crystal shards raylib`
+On macOS: `brew install crystal raylib openssl`
+On Arch: `pacman -S crystal shards raylib openssl`
 
 ### Building Raylib 5.0 locally (Debian/Ubuntu)
 
@@ -17,9 +19,10 @@ If a distro package for Raylib 5.0 is not available, build it from source and
 install it under the repo directory so no root access is required:
 
 ```sh
-# Install build tools and Raylib's system dependencies
+# Install build tools, Raylib's system dependencies, and OpenSSL dev headers
 sudo apt-get install -y cmake libasound2-dev libx11-dev libxrandr-dev \
-    libxi-dev libgl1-mesa-dev libglu1-mesa-dev libxcursor-dev libxinerama-dev
+    libxi-dev libgl1-mesa-dev libglu1-mesa-dev libxcursor-dev libxinerama-dev \
+    libssl-dev
 
 # Clone and build Raylib 5.0
 git clone --depth 1 --branch 5.0 https://github.com/raysan5/raylib
@@ -70,22 +73,25 @@ You can make the run-time path permanent by adding the following line to
 
 ## Controls
 
-- **Left-drag on empty space** — draw a rectangle
-- **Click a rectangle** — select it
-- **Drag a selected rectangle** — move it
-- **Drag a handle on a selected rectangle** — resize it
-- **Delete / Backspace** — delete the selected rectangle
-- **Right-drag / Middle-drag** — pan the canvas
-- **Mouse wheel** — zoom toward the cursor
+| Action | Input |
+|---|---|
+| Draw a rectangle | `R` to select Rect tool, then left-drag on empty space |
+| Draw a text node | `T` to select Text tool, then left-drag on empty space |
+| Edit label / text | Click to select, then type |
+| Insert newline | Enter |
+| Backspace | Delete last character |
+| Delete element | Delete key |
+| Move element | Drag a selected element |
+| Resize element | Drag a handle on a selected element |
+| Pan canvas | Right-drag or middle-drag |
+| Zoom | Mouse wheel (snaps to well-known levels: 0.25×, 0.5×, 1×, 2×, …) |
 
-Shapes are saved to `canvas.json` in the working directory on exit and restored
-automatically on next launch.
+The canvas is saved to `canvas.json` in the working directory on exit and
+restored automatically on next launch.
 
 ## Layout
 
-- `src/infinite_canvas.cr` — entry point, window + main loop
-- `src/canvas.cr` — camera, grid, input, draft rendering
-- `src/element.cr` — `Element` base class and `RectElement`
-- `src/persistence.cr` — JSON serialization structs for save/load
-
-Next elements to add: text boxes, markdown docs, images, lines, arrows.
+- `src/infinite_canvas.cr` — entry point, window setup, main loop, HUD
+- `src/canvas.cr` — camera, grid, input handling, element management
+- `src/element.cr` — `Element` base class, `RectElement`, `TextElement`
+- `src/persistence.cr` — JSON serialization for save/load
