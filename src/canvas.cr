@@ -162,13 +162,19 @@ class Canvas
         @drag_start_mouse = mouse_world
         @drag_start_bounds = @elements[idx].bounds
       elsif (idx = hit_test_element(mouse_world))
-        # Select element and begin move.
+        # Select element and begin move. Clean up any empty text node that was
+        # previously selected; if it sat before the new target, shift the index.
+        if (removed_at = cleanup_empty_text_selection) && idx > removed_at
+          idx -= 1
+        end
         @selected_index = idx
         @drag_mode = DragMode::Moving
         @drag_start_mouse = mouse_world
         @drag_start_bounds = @elements[idx].bounds
       else
-        # Click on empty space: deselect and start drawing.
+        # Click on empty space: deselect (removing any empty text node) and
+        # start drawing.
+        cleanup_empty_text_selection
         @selected_index = nil
         @drag_mode = DragMode::Drawing
         @draw_start = mouse_world
@@ -205,6 +211,7 @@ class Canvas
                  in ActiveTool::Rect then RectElement.new(rect)
                  in ActiveTool::Text then TextElement.new(rect)
                  end
+            el.fit_content
             @elements << el
             @selected_index = @elements.size - 1
           end
@@ -257,6 +264,19 @@ class Canvas
     @active_tool = ActiveTool::Text if R.key_pressed?(R::KeyboardKey::T)
   end
 
+  # If the selected element is a TextElement with empty text, remove it and
+  # return its former index so callers can adjust other indices. Returns nil
+  # when no cleanup was needed.
+  private def cleanup_empty_text_selection : Int32?
+    idx = @selected_index
+    return nil unless idx
+    el = @elements[idx]
+    return nil unless el.is_a?(TextElement) && el.text.empty?
+    @elements.delete_at(idx)
+    @selected_index = nil
+    idx
+  end
+
   # Returns the index of the topmost element under *mouse_world*, or nil.
   private def hit_test_element(mouse_world : R::Vector2) : Int32?
     (@elements.size - 1).downto(0) do |i|
@@ -269,6 +289,7 @@ class Canvas
   private def hit_test_handles(mouse_world : R::Vector2) : Handle?
     return nil unless (idx = @selected_index)
     return nil unless idx < @elements.size
+    return nil unless @elements[idx].resizable?
     half = (HANDLE_SIZE / 2.0_f32) / @camera.zoom
     handle_positions(@elements[idx].bounds).each do |(handle, center)|
       return handle if (mouse_world.x - center.x).abs <= half &&
@@ -338,13 +359,15 @@ class Canvas
 
     R.draw_rectangle_lines_ex(bounds, thickness, SEL_COLOR)
 
-    # Draw resize handles as small squares.
-    half = (HANDLE_SIZE / 2.0_f32) / @camera.zoom
-    hs = HANDLE_SIZE / @camera.zoom
-    handle_positions(bounds).each do |(_, center)|
-      hr = R::Rectangle.new(x: center.x - half, y: center.y - half, width: hs, height: hs)
-      R.draw_rectangle_rec(hr, R::WHITE)
-      R.draw_rectangle_lines_ex(hr, 1.5_f32 / @camera.zoom, SEL_COLOR)
+    # Draw resize handles as small squares — only for resizable elements.
+    if @elements[idx].resizable?
+      half = (HANDLE_SIZE / 2.0_f32) / @camera.zoom
+      hs = HANDLE_SIZE / @camera.zoom
+      handle_positions(bounds).each do |(_, center)|
+        hr = R::Rectangle.new(x: center.x - half, y: center.y - half, width: hs, height: hs)
+        R.draw_rectangle_rec(hr, R::WHITE)
+        R.draw_rectangle_lines_ex(hr, 1.5_f32 / @camera.zoom, SEL_COLOR)
+      end
     end
 
     # Blinking text cursor — each element type draws its own cursor.

@@ -38,6 +38,12 @@ abstract class Element
   # Called when Backspace is pressed while this element is selected.
   def handle_backspace; end
 
+  # Whether the element can be manually resized by dragging handles.
+  # Text nodes return false — their size is always derived from their content.
+  def resizable? : Bool
+    true
+  end
+
   # Expands bounds if content no longer fits after a text change.
   def fit_content; end
 
@@ -159,6 +165,10 @@ class TextElement < Element
     super(bounds, id)
   end
 
+  def resizable? : Bool
+    false
+  end
+
   def draw
     return if text.empty?
     lines = text.split('\n')
@@ -171,7 +181,12 @@ class TextElement < Element
   end
 
   def min_size : {Float32, Float32}
-    return {4.0_f32, 4.0_f32} if text.empty?
+    if text.empty?
+      # Reserve enough space for the blinking cursor with padding on all sides,
+      # so a freshly-created text node looks intentional rather than invisible.
+      cursor_w = R.measure_text("|", FONT_SIZE)
+      return {(cursor_w + PADDING * 2).to_f32, (FONT_SIZE + PADDING * 2).to_f32}
+    end
     lines = text.split('\n')
     max_tw = lines.map { |l| R.measure_text(l, FONT_SIZE) }.max? || 0
     {(max_tw + PADDING * 2).to_f32, (lines.size * FONT_SIZE + PADDING * 2).to_f32}
@@ -191,11 +206,8 @@ class TextElement < Element
 
   def fit_content
     mw, mh = min_size
-    @bounds = R::Rectangle.new(
-      x: bounds.x, y: bounds.y,
-      width: Math.max(bounds.width, mw),
-      height: Math.max(bounds.height, mh),
-    )
+    # Text nodes are always sized to exactly fit their content — never larger.
+    @bounds = R::Rectangle.new(x: bounds.x, y: bounds.y, width: mw, height: mh)
   end
 
   def draw_cursor
