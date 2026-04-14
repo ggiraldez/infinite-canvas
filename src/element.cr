@@ -1,4 +1,5 @@
 require "raylib-cr"
+require "uuid"
 
 alias R = Raylib
 
@@ -11,8 +12,9 @@ end
 # Positions and sizes are in world space (not screen space).
 abstract class Element
   property bounds : R::Rectangle
+  getter id : UUID
 
-  def initialize(@bounds : R::Rectangle)
+  def initialize(@bounds : R::Rectangle, @id : UUID = UUID.random)
   end
 
   abstract def draw
@@ -61,8 +63,9 @@ class RectElement < Element
                  @fill : R::Color = R::Color.new(r: 90, g: 140, b: 220, a: 200),
                  @stroke : R::Color = R::Color.new(r: 30, g: 60, b: 120, a: 255),
                  @stroke_width : Float32 = 2.0_f32,
-                 @label : String = "")
-    super(bounds)
+                 @label : String = "",
+                 id : UUID = UUID.random)
+    super(bounds, id)
   end
 
   def draw
@@ -152,8 +155,8 @@ class TextElement < Element
 
   property text : String
 
-  def initialize(bounds : R::Rectangle, @text : String = "")
-    super(bounds)
+  def initialize(bounds : R::Rectangle, @text : String = "", id : UUID = UUID.random)
+    super(bounds, id)
   end
 
   def draw

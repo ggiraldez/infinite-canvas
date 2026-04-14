@@ -1,4 +1,5 @@
 require "json"
+require "uuid"
 require "./element"
 
 # JSON-serializable mirror of R::Color.
@@ -25,6 +26,7 @@ class RectElementData < ElementData
   include JSON::Serializable
 
   property type : String = "rect"
+  property id : String = UUID.random.to_s
   property x : Float32
   property y : Float32
   property width : Float32
@@ -36,6 +38,7 @@ class RectElementData < ElementData
 
   def initialize(e : RectElement)
     @type = "rect"
+    @id   = e.id.to_s
     b = e.bounds
     @x, @y, @width, @height = b.x, b.y, b.width, b.height
     @fill         = ColorData.new(e.fill)
@@ -46,7 +49,7 @@ class RectElementData < ElementData
 
   def to_element : Element
     bounds = R::Rectangle.new(x: @x, y: @y, width: @width, height: @height)
-    RectElement.new(bounds, @fill.to_raylib, @stroke.to_raylib, @stroke_width, @label || "")
+    RectElement.new(bounds, @fill.to_raylib, @stroke.to_raylib, @stroke_width, @label || "", UUID.new(@id))
   end
 end
 
@@ -54,6 +57,7 @@ class TextElementData < ElementData
   include JSON::Serializable
 
   property type : String = "text"
+  property id : String = UUID.random.to_s
   property x : Float32
   property y : Float32
   property width : Float32
@@ -62,6 +66,7 @@ class TextElementData < ElementData
 
   def initialize(e : TextElement)
     @type = "text"
+    @id   = e.id.to_s
     b = e.bounds
     @x, @y, @width, @height = b.x, b.y, b.width, b.height
     @text = e.text
@@ -69,7 +74,7 @@ class TextElementData < ElementData
 
   def to_element : Element
     bounds = R::Rectangle.new(x: @x, y: @y, width: @width, height: @height)
-    TextElement.new(bounds, @text)
+    TextElement.new(bounds, @text, UUID.new(@id))
   end
 end
 
