@@ -41,11 +41,17 @@ class RectElement < Element
   end
 
   # Draws *text* horizontally and vertically centred inside bounds.
+  # Newline characters split the text into multiple centred lines.
   def draw_centered_text(text : String)
     return if text.empty?
-    tw = R.measure_text(text, LABEL_FONT_SIZE)
-    lx = (bounds.x + (bounds.width - tw) / 2.0_f32).to_i
-    ly = (bounds.y + (bounds.height - LABEL_FONT_SIZE) / 2.0_f32).to_i
-    R.draw_text(text, lx, ly, LABEL_FONT_SIZE, LABEL_COLOR)
+    lines = text.split('\n')
+    total_height = lines.size * LABEL_FONT_SIZE
+    start_y = bounds.y + (bounds.height - total_height) / 2.0_f32
+    lines.each_with_index do |line, i|
+      tw = R.measure_text(line, LABEL_FONT_SIZE)
+      lx = (bounds.x + (bounds.width - tw) / 2.0_f32).to_i
+      ly = (start_y + i * LABEL_FONT_SIZE).to_i
+      R.draw_text(line, lx, ly, LABEL_FONT_SIZE, LABEL_COLOR)
+    end
   end
 end

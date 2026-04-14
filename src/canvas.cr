@@ -182,6 +182,11 @@ class Canvas
       el.label += ch.chr.to_s
     end
 
+    # Enter inserts a newline.
+    if R.key_pressed?(R::KeyboardKey::Enter)
+      el.label += "\n"
+    end
+
     # Backspace: trim label, or delete element when label is already empty.
     if R.key_pressed?(R::KeyboardKey::Backspace)
       if el.label.empty?
@@ -302,9 +307,12 @@ class Canvas
     if (el = @elements[idx]).is_a?(RectElement)
       if (R.get_time * 2.0).to_i % 2 == 0
         fs = RectElement::LABEL_FONT_SIZE
-        tw = R.measure_text(el.label, fs)
+        lines = el.label.split('\n')
+        last_line = lines.last
+        tw = R.measure_text(last_line, fs)
+        total_height = lines.size * fs
         cx = (bounds.x + (bounds.width + tw) / 2.0_f32).to_i
-        cy = (bounds.y + (bounds.height - fs) / 2.0_f32).to_i
+        cy = (bounds.y + (bounds.height - total_height) / 2.0_f32 + (lines.size - 1) * fs).to_i
         R.draw_text("|", cx, cy, fs, RectElement::LABEL_COLOR)
       end
     end
