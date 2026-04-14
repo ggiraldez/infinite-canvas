@@ -36,13 +36,14 @@ class Canvas
   end
 
   enum ActiveTool
+    Selection
     Rect
     Text
   end
 
   getter elements : Array(Element)
   getter camera : R::Camera2D
-  property active_tool : ActiveTool = ActiveTool::Rect
+  property active_tool : ActiveTool = ActiveTool::Selection
 
   @drag_mode : DragMode = DragMode::None
   @selected_index : Int32? = nil
@@ -50,9 +51,6 @@ class Canvas
   # Drawing state
   @draw_start : R::Vector2?
   @draw_current : R::Vector2?
-  # True when drawing started while an element was selected; a click (no drag)
-  # in that case should deselect rather than create a new element.
-  @draw_started_with_selection : Bool = false
 
   # Move / resize state
   @drag_start_mouse : R::Vector2?
@@ -159,31 +157,33 @@ class Canvas
     mouse_world = R.get_screen_to_world_2d(R.get_mouse_position, @camera)
 
     if R.mouse_button_pressed?(R::MouseButton::Left)
-      if (handle = hit_test_handles(mouse_world))
-        # Begin resize of the already-selected element.
-        idx = @selected_index.not_nil!
-        @drag_mode = DragMode::Resizing
-        @active_handle = handle
-        @drag_start_mouse = mouse_world
-        @drag_start_bounds = @elements[idx].bounds
-      elsif (idx = hit_test_element(mouse_world))
-        # Select element and begin move. Clean up any empty text node that was
-        # previously selected; if it sat before the new target, shift the index.
-        # If the clicked element *was* the empty text node, skip selection entirely.
-        removed_at = cleanup_empty_text_selection
-        unless removed_at == idx
-          idx -= 1 if removed_at && idx > removed_at
-          @selected_index = idx
-          @drag_mode = DragMode::Moving
+      if @active_tool.selection?
+        # Selection tool: hit-test handles → resize, elements → move, empty → deselect.
+        if (handle = hit_test_handles(mouse_world))
+          idx = @selected_index.not_nil!
+          @drag_mode = DragMode::Resizing
+          @active_handle = handle
           @drag_start_mouse = mouse_world
           @drag_start_bounds = @elements[idx].bounds
+        elsif (idx = hit_test_element(mouse_world))
+          # If the clicked element was itself an empty text node, clean it up and
+          # skip selection. Otherwise adjust the index if cleanup shifted things.
+          removed_at = cleanup_empty_text_selection
+          unless removed_at == idx
+            idx -= 1 if removed_at && idx > removed_at
+            @selected_index = idx
+            @drag_mode = DragMode::Moving
+            @drag_start_mouse = mouse_world
+            @drag_start_bounds = @elements[idx].bounds
+          end
+        else
+          # Empty space: clear selection. Drag is reserved for future multi-select.
+          cleanup_empty_text_selection
+          @selected_index = nil
         end
       else
-        # Click/drag on empty space: always enter Drawing mode so a drag creates
-        # an element immediately. Remember whether there was a selection so a
-        # plain click (no drag) can deselect instead of creating an element.
+        # Rect / Text tool: skip hit-testing entirely and always start drawing.
         cleanup_empty_text_selection
-        @draw_started_with_selection = @selected_index != nil
         @selected_index = nil
         @drag_mode = DragMode::Drawing
         @draw_start = mouse_world
@@ -216,32 +216,30 @@ class Canvas
         if (start = @draw_start) && (current = @draw_current)
           dragged = rect_from_points(start, current)
           is_drag = dragged.width >= 4.0_f32 || dragged.height >= 4.0_f32
-          # A click (no meaningful drag) that started over a selection just
-          # deselects — don't create a new element.
-          unless !is_drag && @draw_started_with_selection
-            el = if is_drag
-              case @active_tool
-              in ActiveTool::Rect then RectElement.new(dragged)
-              in ActiveTool::Text then TextElement.new(dragged)
-              end
-            else
-              case @active_tool
-              in ActiveTool::Rect
-                RectElement.new(R::Rectangle.new(x: start.x, y: start.y,
-                                                 width: DEFAULT_RECT_W, height: DEFAULT_RECT_H))
-              in ActiveTool::Text
-                TextElement.new(R::Rectangle.new(x: start.x, y: start.y,
-                                                 width: 0.0_f32, height: 0.0_f32))
-              end
+          el = if is_drag
+            case @active_tool
+            when ActiveTool::Rect then RectElement.new(dragged)
+            when ActiveTool::Text then TextElement.new(dragged)
             end
+          else
+            case @active_tool
+            when ActiveTool::Rect
+              RectElement.new(R::Rectangle.new(x: start.x, y: start.y,
+                                               width: DEFAULT_RECT_W, height: DEFAULT_RECT_H))
+            when ActiveTool::Text
+              TextElement.new(R::Rectangle.new(x: start.x, y: start.y,
+                                               width: 0.0_f32, height: 0.0_f32))
+            end
+          end
+          if el
             el.fit_content
             @elements << el
             @selected_index = @elements.size - 1
+            @active_tool = ActiveTool::Selection
           end
         end
         @draw_start = nil
         @draw_current = nil
-        @draw_started_with_selection = false
       end
       @drag_mode = DragMode::None
       @drag_start_mouse = nil
@@ -280,12 +278,13 @@ class Canvas
     end
   end
 
-  # Switch active tool with R / T. Only active while no element is selected so
-  # the keys are still available for text input when editing.
+  # Switch active tool with S / R / T. Guarded while an element is selected so
+  # the keys remain available for text input when editing.
   private def handle_tool_switch
     return if @selected_index
-    @active_tool = ActiveTool::Rect if R.key_pressed?(R::KeyboardKey::R)
-    @active_tool = ActiveTool::Text if R.key_pressed?(R::KeyboardKey::T)
+    @active_tool = ActiveTool::Selection if R.key_pressed?(R::KeyboardKey::S)
+    @active_tool = ActiveTool::Rect      if R.key_pressed?(R::KeyboardKey::R)
+    @active_tool = ActiveTool::Text      if R.key_pressed?(R::KeyboardKey::T)
   end
 
   # If the selected element is a TextElement with empty text, remove it and
