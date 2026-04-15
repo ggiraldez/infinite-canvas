@@ -107,6 +107,10 @@ class Canvas
       when "arrow" then ArrowElementData.from_json(data).to_element(@elements).as(Element)
       end
     end
+    # compact_map returns a new array assigned to @elements after the block
+    # finishes, so arrows constructed inside the block hold a reference to the
+    # old array. Patch them here to point at the live one.
+    @elements.each { |e| e.elements = @elements if e.is_a?(ArrowElement) }
   rescue ex
     STDERR.puts "Warning: could not load canvas — #{ex.message}"
   end
@@ -309,7 +313,9 @@ class Canvas
   private def handle_delete
     return unless (idx = @selected_index)
     if R.key_pressed?(R::KeyboardKey::Delete) || R.key_pressed_repeat?(R::KeyboardKey::Delete)
+      deleted_id = @elements[idx].id
       @elements.delete_at(idx)
+      @elements.reject! { |e| e.is_a?(ArrowElement) && (e.from_id == deleted_id || e.to_id == deleted_id) }
       @selected_index = nil
     end
   end

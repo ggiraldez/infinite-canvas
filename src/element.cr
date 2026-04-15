@@ -237,7 +237,7 @@ class ArrowElement < Element
 
   # Reference to the canvas element list — updated at construction so the
   # arrow can resolve from_id / to_id without coupling to Canvas directly.
-  @elements : Array(Element)
+  property elements : Array(Element)
 
   def initialize(@from_id : UUID, @to_id : UUID, @elements : Array(Element), id : UUID = UUID.random)
     super(R::Rectangle.new(x: 0.0_f32, y: 0.0_f32, width: 0.0_f32, height: 0.0_f32), id)
@@ -260,15 +260,15 @@ class ArrowElement < Element
     from_el = resolve_from
     to_el   = resolve_to
     return false unless from_el && to_el
-    segment_dist(world_point, center_of(from_el.bounds), center_of(to_el.bounds)) <= threshold
+    a, b = endpoints(from_el, to_el)
+    segment_dist(world_point, a, b) <= threshold
   end
 
   def draw
     from_el = resolve_from
     to_el   = resolve_to
     return unless from_el && to_el
-    a = center_of(from_el.bounds)
-    b = center_of(to_el.bounds)
+    a, b = endpoints(from_el, to_el)
     draw_arrow(a, b, ARROW_COLOR, ARROW_WIDTH)
     update_bounds(a, b)
   end
@@ -279,7 +279,8 @@ class ArrowElement < Element
     from_el = resolve_from
     to_el   = resolve_to
     return unless from_el && to_el
-    draw_arrow(center_of(from_el.bounds), center_of(to_el.bounds), color, width)
+    a, b = endpoints(from_el, to_el)
+    draw_arrow(a, b, color, width)
   end
 
   private def resolve_from : Element?
@@ -290,8 +291,57 @@ class ArrowElement < Element
     @elements.find { |e| e.id == @to_id }
   end
 
+  # Returns the two world-space points where the arrow shaft meets each element's border.
+  private def endpoints(from_el : Element, to_el : Element) : {R::Vector2, R::Vector2}
+    fc = center_of(from_el.bounds)
+    tc = center_of(to_el.bounds)
+    {border_exit_point(from_el.bounds, fc, tc), border_exit_point(to_el.bounds, tc, fc)}
+  end
+
   private def center_of(b : R::Rectangle) : R::Vector2
     R::Vector2.new(x: b.x + b.width / 2.0_f32, y: b.y + b.height / 2.0_f32)
+  end
+
+  # Returns the point where the ray from *origin* (the centre of *b*) toward
+  # *toward* exits the border of rectangle *b*.  Falls back to origin when the
+  # two centres are coincident.
+  private def border_exit_point(b : R::Rectangle, origin : R::Vector2, toward : R::Vector2) : R::Vector2
+    dx = toward.x - origin.x
+    dy = toward.y - origin.y
+    return origin if dx.abs < 0.001_f32 && dy.abs < 0.001_f32
+
+    t_min = Float32::MAX
+
+    # Right edge
+    if dx > 0.001_f32
+      t = (b.x + b.width - origin.x) / dx
+      y = origin.y + t * dy
+      t_min = t if t >= 0 && y >= b.y && y <= b.y + b.height && t < t_min
+    end
+    # Left edge
+    if dx < -0.001_f32
+      t = (b.x - origin.x) / dx
+      y = origin.y + t * dy
+      t_min = t if t >= 0 && y >= b.y && y <= b.y + b.height && t < t_min
+    end
+    # Bottom edge
+    if dy > 0.001_f32
+      t = (b.y + b.height - origin.y) / dy
+      x = origin.x + t * dx
+      t_min = t if t >= 0 && x >= b.x && x <= b.x + b.width && t < t_min
+    end
+    # Top edge
+    if dy < -0.001_f32
+      t = (b.y - origin.y) / dy
+      x = origin.x + t * dx
+      t_min = t if t >= 0 && x >= b.x && x <= b.x + b.width && t < t_min
+    end
+
+    if t_min < Float32::MAX
+      R::Vector2.new(x: origin.x + t_min * dx, y: origin.y + t_min * dy)
+    else
+      origin
+    end
   end
 
   private def update_bounds(a : R::Vector2, b : R::Vector2)
