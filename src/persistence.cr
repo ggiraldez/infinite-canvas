@@ -102,16 +102,19 @@ class ArrowElementData < ElementData
   property id : String = UUID.random.to_s
   property from_id : String
   property to_id : String
+  property routing_style : String = "orthogonal"
 
   def initialize(e : ArrowElement)
-    @type    = "arrow"
-    @id      = e.id.to_s
-    @from_id = e.from_id.to_s
-    @to_id   = e.to_id.to_s
+    @type          = "arrow"
+    @id            = e.id.to_s
+    @from_id       = e.from_id.to_s
+    @to_id         = e.to_id.to_s
+    @routing_style = e.routing_style.to_s.downcase
   end
 
   def to_element(elements : Array(Element)) : Element
-    ArrowElement.new(UUID.new(@from_id), UUID.new(@to_id), elements, UUID.new(@id))
+    style = @routing_style == "straight" ? ArrowElement::RoutingStyle::Straight : ArrowElement::RoutingStyle::Orthogonal
+    ArrowElement.new(UUID.new(@from_id), UUID.new(@to_id), elements, style, UUID.new(@id))
   end
 
   # Satisfy the abstract contract — callers that need the elements list use to_element(elements).

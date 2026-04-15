@@ -40,6 +40,9 @@ module InfiniteCanvas
   private def self.draw_hud(canvas : Canvas)
     R.draw_text("Tools: [S]elect  [R]ect  [T]ext  [A]rrow   active: #{canvas.active_tool}   |   Delete: Del", 12, 12, 20, R::DARKGRAY)
     R.draw_text("Pan: right/middle-drag   Zoom: wheel   Elements: #{canvas.elements.size}   Zoom: #{canvas.camera.zoom.round(2)}x", 12, 36, 20, R::GRAY)
+    if (el = canvas.selected_element).is_a?(ArrowElement)
+      R.draw_text("Arrow routing: #{el.routing_style}   [Tab] to toggle", 12, 60, 20, R::DARKGRAY)
+    end
     R.draw_fps(R.get_screen_width - 100, R.get_screen_height - 30)
   end
 end

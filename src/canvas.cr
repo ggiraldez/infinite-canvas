@@ -47,6 +47,10 @@ class Canvas
   getter camera : R::Camera2D
   property active_tool : ActiveTool = ActiveTool::Selection
 
+  def selected_element : Element?
+    (idx = @selected_index) ? @elements[idx]? : nil
+  end
+
   @drag_mode : DragMode = DragMode::None
   @selected_index : Int32? = nil
 
@@ -122,6 +126,7 @@ class Canvas
     handle_text_input
     handle_delete
     handle_tool_switch
+    handle_arrow_style_toggle
   end
 
   def draw
@@ -318,6 +323,17 @@ class Canvas
       @elements.reject! { |e| e.is_a?(ArrowElement) && (e.from_id == deleted_id || e.to_id == deleted_id) }
       @selected_index = nil
     end
+  end
+
+  # Toggle the routing style of the selected arrow with Tab.
+  private def handle_arrow_style_toggle
+    return unless (idx = @selected_index)
+    return unless R.key_pressed?(R::KeyboardKey::Tab)
+    el = @elements[idx]
+    return unless el.is_a?(ArrowElement)
+    el.routing_style = el.routing_style.straight? ?
+      ArrowElement::RoutingStyle::Orthogonal :
+      ArrowElement::RoutingStyle::Straight
   end
 
   # Switch active tool with S / R / T / A. Guarded while an element is selected so

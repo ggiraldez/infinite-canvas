@@ -232,14 +232,22 @@ class ArrowElement < Element
   ARROWHEAD_LEN  = 14.0_f32
   ARROWHEAD_HALF =  5.0_f32
 
+  enum RoutingStyle
+    Straight
+    Orthogonal
+  end
+
   property from_id : UUID
   property to_id : UUID
+  property routing_style : RoutingStyle
 
   # Reference to the canvas element list — updated at construction so the
   # arrow can resolve from_id / to_id without coupling to Canvas directly.
   property elements : Array(Element)
 
-  def initialize(@from_id : UUID, @to_id : UUID, @elements : Array(Element), id : UUID = UUID.random)
+  def initialize(@from_id : UUID, @to_id : UUID, @elements : Array(Element),
+                 @routing_style : RoutingStyle = RoutingStyle::Orthogonal,
+                 id : UUID = UUID.random)
     super(R::Rectangle.new(x: 0.0_f32, y: 0.0_f32, width: 0.0_f32, height: 0.0_f32), id)
   end
 
@@ -253,34 +261,32 @@ class ArrowElement < Element
     false
   end
 
-  # Returns true when *world_point* is within *threshold* world units of the
-  # arrow shaft.  Canvas divides a fixed screen-pixel constant by zoom before
-  # calling this so the click target stays constant in screen space.
+  # Returns true when *world_point* is within *threshold* world units of any
+  # segment of the arrow.  Canvas divides a fixed screen-pixel constant by zoom
+  # before calling this so the click target is constant in screen space.
   def near_line?(world_point : R::Vector2, threshold : Float32) : Bool
     from_el = resolve_from
     to_el   = resolve_to
     return false unless from_el && to_el
-    a, b = endpoints(from_el, to_el)
-    segment_dist(world_point, a, b) <= threshold
+    pts = route(from_el.bounds, to_el.bounds)
+    (pts.size - 1).times.any? { |i| segment_dist(world_point, pts[i], pts[i + 1]) <= threshold }
   end
 
   def draw
     from_el = resolve_from
     to_el   = resolve_to
     return unless from_el && to_el
-    a, b = endpoints(from_el, to_el)
-    draw_arrow(a, b, ARROW_COLOR, ARROW_WIDTH)
-    update_bounds(a, b)
+    pts = route(from_el.bounds, to_el.bounds)
+    draw_segments(pts, ARROW_COLOR, ARROW_WIDTH)
+    update_bounds_from_points(pts)
   end
 
-  # Draws the arrow in *color* at *width* — used by Canvas for the selection
-  # highlight without re-resolving elements a second time.
+  # Draws the arrow in *color* at *width* — used by Canvas for the selection highlight.
   def draw_highlighted(color : R::Color, width : Float32)
     from_el = resolve_from
     to_el   = resolve_to
     return unless from_el && to_el
-    a, b = endpoints(from_el, to_el)
-    draw_arrow(a, b, color, width)
+    draw_segments(route(from_el.bounds, to_el.bounds), color, width)
   end
 
   private def resolve_from : Element?
@@ -291,89 +297,188 @@ class ArrowElement < Element
     @elements.find { |e| e.id == @to_id }
   end
 
-  # Returns the two world-space points where the arrow shaft meets each element's border.
-  private def endpoints(from_el : Element, to_el : Element) : {R::Vector2, R::Vector2}
-    fc = center_of(from_el.bounds)
-    tc = center_of(to_el.bounds)
-    {border_exit_point(from_el.bounds, fc, tc), border_exit_point(to_el.bounds, tc, fc)}
+  # ── Routing ──────────────────────────────────────────────────────────────────
+
+  private def route(src : R::Rectangle, tgt : R::Rectangle) : Array(R::Vector2)
+    @routing_style.straight? ? straight_route(src, tgt) : ortho_route(src, tgt)
   end
 
-  private def center_of(b : R::Rectangle) : R::Vector2
-    R::Vector2.new(x: b.x + b.width / 2.0_f32, y: b.y + b.height / 2.0_f32)
+  # Straight: two border points on the centre-to-centre line.
+  private def straight_route(src : R::Rectangle, tgt : R::Rectangle) : Array(R::Vector2)
+    src_c = R::Vector2.new(x: src.x + src.width / 2.0_f32, y: src.y + src.height / 2.0_f32)
+    tgt_c = R::Vector2.new(x: tgt.x + tgt.width / 2.0_f32, y: tgt.y + tgt.height / 2.0_f32)
+    [border_exit_point(src, src_c, tgt_c), border_exit_point(tgt, tgt_c, src_c)]
   end
 
-  # Returns the point where the ray from *origin* (the centre of *b*) toward
-  # *toward* exits the border of rectangle *b*.  Falls back to origin when the
-  # two centres are coincident.
+  # ── Orthogonal routing ───────────────────────────────────────────────────────
+
+  # Returns an ordered list of waypoints for an orthogonal (rectilinear) path
+  # from the border of *src* to the border of *tgt*.
+  #
+  # Strategy:
+  #   1. Try a 2-segment L-shape by exiting src horizontally and entering tgt
+  #      vertically (Option A), or vice-versa (Option B).  Valid only when the
+  #      shared corner lies outside both rectangles so no segment doubles back.
+  #   2. Fall back to a 3-segment Z-shape (facing borders) or U-shape (opposing
+  #      borders) using the centre-to-centre exit points.
+  private def ortho_route(src : R::Rectangle, tgt : R::Rectangle) : Array(R::Vector2)
+    sx = src.x + src.width  / 2.0_f32
+    sy = src.y + src.height / 2.0_f32
+    tx = tgt.x + tgt.width  / 2.0_f32
+    ty = tgt.y + tgt.height / 2.0_f32
+    dx = tx - sx
+    dy = ty - sy
+
+    # ── L-shape attempts (2 segments) ────────────────────────────────────────
+    if dx.abs > 0.5_f32 && dy.abs > 0.5_f32
+      # Option A: exit src from horizontal border, enter tgt from vertical border.
+      #   exit point  = (src right/left edge, sy)
+      #   entry point = (tx, tgt top/bottom edge)
+      #   corner      = (tx, sy)
+      ex_a  = dx > 0 ? src.x + src.width : src.x
+      ey_a  = dy > 0 ? tgt.y : tgt.y + tgt.height
+      seg1a = dx > 0 ? tx > ex_a : tx < ex_a   # horizontal leg goes the right way
+      seg2a = dy > 0 ? ey_a > sy : ey_a < sy   # vertical leg goes the right way
+      if seg1a && seg2a
+        return [R::Vector2.new(x: ex_a, y: sy),
+                R::Vector2.new(x: tx,   y: sy),
+                R::Vector2.new(x: tx,   y: ey_a)]
+      end
+
+      # Option B: exit src from vertical border, enter tgt from horizontal border.
+      #   exit point  = (sx, src bottom/top edge)
+      #   entry point = (tgt left/right edge, ty)
+      #   corner      = (sx, ty)
+      ey_b  = dy > 0 ? src.y + src.height : src.y
+      ex_b  = dx > 0 ? tgt.x : tgt.x + tgt.width
+      seg1b = dy > 0 ? ty > ey_b : ty < ey_b
+      seg2b = dx > 0 ? ex_b > sx : ex_b < sx
+      if seg1b && seg2b
+        return [R::Vector2.new(x: sx,   y: ey_b),
+                R::Vector2.new(x: sx,   y: ty),
+                R::Vector2.new(x: ex_b, y: ty)]
+      end
+    end
+
+    # ── 3-segment fallback ────────────────────────────────────────────────────
+    # Use centre-to-centre exit points to determine which sides are involved.
+    src_c  = R::Vector2.new(x: sx, y: sy)
+    tgt_c  = R::Vector2.new(x: tx, y: ty)
+    a      = border_exit_point(src, src_c, tgt_c)
+    b      = border_exit_point(tgt, tgt_c, src_c)
+    a_side = point_side(a, src)
+    b_side = point_side(b, tgt)
+
+    case {a_side, b_side}
+    when {Side::Right, Side::Left}, {Side::Left, Side::Right}
+      # Facing horizontal borders → Z-shape: H – V – H
+      mid_x = (a.x + b.x) / 2.0_f32
+      [a, R::Vector2.new(x: mid_x, y: a.y), R::Vector2.new(x: mid_x, y: b.y), b]
+    when {Side::Top, Side::Bottom}, {Side::Bottom, Side::Top}
+      # Facing vertical borders → Z-shape: V – H – V
+      mid_y = (a.y + b.y) / 2.0_f32
+      [a, R::Vector2.new(x: a.x, y: mid_y), R::Vector2.new(x: b.x, y: mid_y), b]
+    when {Side::Right, Side::Right}
+      ext = [a.x, b.x].max + 30.0_f32
+      [a, R::Vector2.new(x: ext, y: a.y), R::Vector2.new(x: ext, y: b.y), b]
+    when {Side::Left, Side::Left}
+      ext = [a.x, b.x].min - 30.0_f32
+      [a, R::Vector2.new(x: ext, y: a.y), R::Vector2.new(x: ext, y: b.y), b]
+    when {Side::Bottom, Side::Bottom}
+      ext = [a.y, b.y].max + 30.0_f32
+      [a, R::Vector2.new(x: a.x, y: ext), R::Vector2.new(x: b.x, y: ext), b]
+    when {Side::Top, Side::Top}
+      ext = [a.y, b.y].min - 30.0_f32
+      [a, R::Vector2.new(x: a.x, y: ext), R::Vector2.new(x: b.x, y: ext), b]
+    else
+      # Perpendicular sides — shouldn't reach here after L-shape attempts, but
+      # handle gracefully with a single-corner L.
+      [a, R::Vector2.new(x: b.x, y: a.y), b]
+    end
+  end
+
+  # Which border of *b* is *pt* closest to?
+  private enum Side; Left; Right; Top; Bottom; end
+
+  private def point_side(pt : R::Vector2, b : R::Rectangle) : Side
+    dl = (pt.x - b.x).abs
+    dr = (pt.x - (b.x + b.width)).abs
+    dt = (pt.y - b.y).abs
+    db = (pt.y - (b.y + b.height)).abs
+    case [dl, dr, dt, db].min
+    when dl then Side::Left
+    when dr then Side::Right
+    when dt then Side::Top
+    else         Side::Bottom
+    end
+  end
+
+  # Returns the point where the ray from *origin* toward *toward* exits *b*.
   private def border_exit_point(b : R::Rectangle, origin : R::Vector2, toward : R::Vector2) : R::Vector2
     dx = toward.x - origin.x
     dy = toward.y - origin.y
     return origin if dx.abs < 0.001_f32 && dy.abs < 0.001_f32
-
     t_min = Float32::MAX
-
-    # Right edge
     if dx > 0.001_f32
       t = (b.x + b.width - origin.x) / dx
       y = origin.y + t * dy
       t_min = t if t >= 0 && y >= b.y && y <= b.y + b.height && t < t_min
     end
-    # Left edge
     if dx < -0.001_f32
       t = (b.x - origin.x) / dx
       y = origin.y + t * dy
       t_min = t if t >= 0 && y >= b.y && y <= b.y + b.height && t < t_min
     end
-    # Bottom edge
     if dy > 0.001_f32
       t = (b.y + b.height - origin.y) / dy
       x = origin.x + t * dx
       t_min = t if t >= 0 && x >= b.x && x <= b.x + b.width && t < t_min
     end
-    # Top edge
     if dy < -0.001_f32
       t = (b.y - origin.y) / dy
       x = origin.x + t * dx
       t_min = t if t >= 0 && x >= b.x && x <= b.x + b.width && t < t_min
     end
-
-    if t_min < Float32::MAX
-      R::Vector2.new(x: origin.x + t_min * dx, y: origin.y + t_min * dy)
-    else
-      origin
-    end
+    t_min < Float32::MAX ? R::Vector2.new(x: origin.x + t_min * dx, y: origin.y + t_min * dy) : origin
   end
 
-  private def update_bounds(a : R::Vector2, b : R::Vector2)
-    x = Math.min(a.x, b.x)
-    y = Math.min(a.y, b.y)
-    w = [(a.x - b.x).abs, 1.0_f32].max
-    h = [(a.y - b.y).abs, 1.0_f32].max
-    @bounds = R::Rectangle.new(x: x, y: y, width: w, height: h)
-  end
+  # ── Drawing helpers ──────────────────────────────────────────────────────────
 
-  private def draw_arrow(a : R::Vector2, b : R::Vector2, color : R::Color, width : Float32)
-    dx = b.x - a.x
-    dy = b.y - a.y
-    len = Math.sqrt(dx * dx + dy * dy).to_f32
+  # Draws the polyline *pts* as shaft segments plus a filled arrowhead at the end.
+  private def draw_segments(pts : Array(R::Vector2), color : R::Color, width : Float32)
+    return if pts.size < 2
+    last  = pts.last
+    prev  = pts[pts.size - 2]
+    adx   = last.x - prev.x
+    ady   = last.y - prev.y
+    len   = Math.sqrt(adx * adx + ady * ady).to_f32
     return if len < 1.0_f32
+    ux = adx / len
+    uy = ady / len
+    shaft_tip = R::Vector2.new(x: last.x - ux * ARROWHEAD_LEN, y: last.y - uy * ARROWHEAD_LEN)
 
-    ux = dx / len  # unit direction
-    uy = dy / len
-    px = -uy       # perpendicular (left-hand side)
-    py =  ux
+    # All segments up to (but not reaching) the arrowhead base.
+    (pts.size - 2).times { |i| R.draw_line_ex(pts[i], pts[i + 1], width, color) }
+    R.draw_line_ex(prev, shaft_tip, width, color)
 
-    # Shaft stops just before the arrowhead base.
-    shaft_tip_x = b.x - ux * ARROWHEAD_LEN
-    shaft_tip_y = b.y - uy * ARROWHEAD_LEN
-    shaft_tip = R::Vector2.new(x: shaft_tip_x, y: shaft_tip_y)
-    R.draw_line_ex(a, shaft_tip, width, color)
-
-    # Filled arrowhead triangle (tip → left-base → right-base, CCW in screen Y-down).
-    tip   = b
-    left  = R::Vector2.new(x: shaft_tip_x + px * ARROWHEAD_HALF, y: shaft_tip_y + py * ARROWHEAD_HALF)
-    right = R::Vector2.new(x: shaft_tip_x - px * ARROWHEAD_HALF, y: shaft_tip_y - py * ARROWHEAD_HALF)
+    # Filled arrowhead triangle.
+    px   = -uy
+    py   =  ux
+    tip  = last
+    left  = R::Vector2.new(x: shaft_tip.x + px * ARROWHEAD_HALF, y: shaft_tip.y + py * ARROWHEAD_HALF)
+    right = R::Vector2.new(x: shaft_tip.x - px * ARROWHEAD_HALF, y: shaft_tip.y - py * ARROWHEAD_HALF)
     R.draw_triangle(tip, right, left, color)
+  end
+
+  private def update_bounds_from_points(pts : Array(R::Vector2))
+    return if pts.empty?
+    min_x = pts.min_of(&.x)
+    min_y = pts.min_of(&.y)
+    max_x = pts.max_of(&.x)
+    max_y = pts.max_of(&.y)
+    @bounds = R::Rectangle.new(x: min_x, y: min_y,
+                                width: [max_x - min_x, 1.0_f32].max,
+                                height: [max_y - min_y, 1.0_f32].max)
   end
 
   # Minimum distance from point *p* to line segment *a*–*b*.
@@ -386,8 +491,6 @@ class ArrowElement < Element
     end
     t = ((p.x - a.x) * dx + (p.y - a.y) * dy) / len_sq
     t = t.clamp(0.0_f32, 1.0_f32)
-    proj_x = a.x + t * dx
-    proj_y = a.y + t * dy
-    Math.sqrt((p.x - proj_x)**2 + (p.y - proj_y)**2).to_f32
+    Math.sqrt((p.x - (a.x + t * dx))**2 + (p.y - (a.y + t * dy))**2).to_f32
   end
 end
