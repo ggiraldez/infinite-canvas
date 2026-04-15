@@ -29,6 +29,7 @@ class Canvas
     Drawing
     Moving
     Resizing
+    Connecting  # Arrow tool: dragging from a source element to a target element
   end
 
   enum Handle
@@ -39,6 +40,7 @@ class Canvas
     Selection
     Rect
     Text
+    Arrow
   end
 
   getter elements : Array(Element)
@@ -57,6 +59,9 @@ class Canvas
   @drag_start_bounds : R::Rectangle?
   @active_handle : Handle?
 
+  # Arrow-connecting state: index of the source element while dragging a new arrow.
+  @arrow_source_index : Int32? = nil
+
   def initialize(screen_width : Int32, screen_height : Int32)
     @elements = [] of Element
     @camera = R::Camera2D.new(
@@ -74,8 +79,9 @@ class Canvas
           json.array do
             @elements.each do |e|
               case e
-              when RectElement then RectElementData.new(e).to_json(json)
-              when TextElement then TextElementData.new(e).to_json(json)
+              when RectElement  then RectElementData.new(e).to_json(json)
+              when TextElement  then TextElementData.new(e).to_json(json)
+              when ArrowElement then ArrowElementData.new(e).to_json(json)
               end
             end
           end
@@ -96,8 +102,9 @@ class Canvas
       type = item["type"]?.try(&.as_s?) || "rect"
       data = item.to_json
       case type
-      when "rect" then RectElementData.from_json(data).to_element.as(Element)
-      when "text" then TextElementData.from_json(data).to_element.as(Element)
+      when "rect"  then RectElementData.from_json(data).to_element.as(Element)
+      when "text"  then TextElementData.from_json(data).to_element.as(Element)
+      when "arrow" then ArrowElementData.from_json(data).to_element(@elements).as(Element)
       end
     end
   rescue ex
@@ -116,7 +123,9 @@ class Canvas
   def draw
     R.begin_mode_2d(@camera)
     draw_grid
-    @elements.each(&.draw)
+    # Arrows first so they appear behind shapes and text.
+    @elements.each { |e| e.draw if e.is_a?(ArrowElement) }
+    @elements.each { |e| e.draw unless e.is_a?(ArrowElement) }
     draw_selection
     draw_draft
     R.end_mode_2d
@@ -181,6 +190,20 @@ class Canvas
           cleanup_empty_text_selection
           @selected_index = nil
         end
+      elsif @active_tool.arrow?
+        # Arrow tool: press on a non-arrow element to begin connecting.
+        cleanup_empty_text_selection
+        @selected_index = nil
+        if (idx = hit_test_element(mouse_world)) && !@elements[idx].is_a?(ArrowElement)
+          @arrow_source_index = idx
+          @drag_mode = DragMode::Connecting
+          src_bounds = @elements[idx].bounds
+          @draw_start = R::Vector2.new(
+            x: src_bounds.x + src_bounds.width / 2.0_f32,
+            y: src_bounds.y + src_bounds.height / 2.0_f32,
+          )
+          @draw_current = mouse_world
+        end
       else
         # Rect / Text tool: skip hit-testing entirely and always start drawing.
         cleanup_empty_text_selection
@@ -192,7 +215,7 @@ class Canvas
 
     elsif R.mouse_button_down?(R::MouseButton::Left)
       case @drag_mode
-      when DragMode::Drawing
+      when DragMode::Drawing, DragMode::Connecting
         @draw_current = mouse_world
       when DragMode::Moving
         if (idx = @selected_index) && (sm = @drag_start_mouse) && (sb = @drag_start_bounds)
@@ -212,7 +235,20 @@ class Canvas
       end
 
     elsif R.mouse_button_released?(R::MouseButton::Left)
-      if @drag_mode.drawing?
+      if @drag_mode.connecting?
+        # Create an arrow if the mouse was released over a different non-arrow element.
+        if (src_idx = @arrow_source_index) && (tgt_idx = hit_test_element(mouse_world))
+          if tgt_idx != src_idx && !@elements[tgt_idx].is_a?(ArrowElement)
+            arrow = ArrowElement.new(@elements[src_idx].id, @elements[tgt_idx].id, @elements)
+            @elements << arrow
+            @active_tool = ActiveTool::Selection
+          end
+        end
+        @arrow_source_index = nil
+        @draw_start = nil
+        @draw_current = nil
+        @drag_mode = DragMode::None
+      elsif @drag_mode.drawing?
         if (start = @draw_start) && (current = @draw_current)
           dragged = rect_from_points(start, current)
           is_drag = dragged.width >= 4.0_f32 || dragged.height >= 4.0_f32
@@ -278,13 +314,14 @@ class Canvas
     end
   end
 
-  # Switch active tool with S / R / T. Guarded while an element is selected so
+  # Switch active tool with S / R / T / A. Guarded while an element is selected so
   # the keys remain available for text input when editing.
   private def handle_tool_switch
     return if @selected_index
     @active_tool = ActiveTool::Selection if R.key_pressed?(R::KeyboardKey::S)
     @active_tool = ActiveTool::Rect      if R.key_pressed?(R::KeyboardKey::R)
     @active_tool = ActiveTool::Text      if R.key_pressed?(R::KeyboardKey::T)
+    @active_tool = ActiveTool::Arrow     if R.key_pressed?(R::KeyboardKey::A)
   end
 
   # If the selected element is a TextElement with empty text, remove it and
@@ -301,9 +338,15 @@ class Canvas
   end
 
   # Returns the index of the topmost element under *mouse_world*, or nil.
+  # Non-arrow elements use bounding-rect containment; arrows use a
+  # zoom-aware line-proximity test so the click target stays constant in
+  # screen pixels regardless of zoom level.
   private def hit_test_element(mouse_world : R::Vector2) : Int32?
+    arrow_threshold = 6.0_f32 / @camera.zoom
     (@elements.size - 1).downto(0) do |i|
-      return i if @elements[i].contains?(mouse_world)
+      el = @elements[i]
+      hit = el.is_a?(ArrowElement) ? el.near_line?(mouse_world, arrow_threshold) : el.contains?(mouse_world)
+      return i if hit
     end
     nil
   end
@@ -370,20 +413,32 @@ class Canvas
 
   private def draw_draft
     return unless (start = @draw_start) && (current = @draw_current)
-    rect = rect_from_points(start, current)
-    R.draw_rectangle_rec(rect, DRAFT_FILL)
-    R.draw_rectangle_lines_ex(rect, 2.0_f32 / @camera.zoom, DRAFT_STROKE)
+    if @drag_mode.connecting?
+      # Arrow preview: dashed line from source center to current mouse position.
+      R.draw_line_ex(start, current, 2.0_f32 / @camera.zoom, DRAFT_STROKE)
+    else
+      rect = rect_from_points(start, current)
+      R.draw_rectangle_rec(rect, DRAFT_FILL)
+      R.draw_rectangle_lines_ex(rect, 2.0_f32 / @camera.zoom, DRAFT_STROKE)
+    end
   end
 
   private def draw_selection
     return unless (idx = @selected_index) && idx < @elements.size
-    bounds = @elements[idx].bounds
+    el = @elements[idx]
     thickness = 2.0_f32 / @camera.zoom
 
+    if el.is_a?(ArrowElement)
+      # Highlight the arrow line itself instead of drawing a bounding box.
+      el.draw_highlighted(SEL_COLOR, 4.0_f32 / @camera.zoom)
+      return
+    end
+
+    bounds = el.bounds
     R.draw_rectangle_lines_ex(bounds, thickness, SEL_COLOR)
 
     # Draw resize handles as small squares — only for resizable elements.
-    if @elements[idx].resizable?
+    if el.resizable?
       half = (HANDLE_SIZE / 2.0_f32) / @camera.zoom
       hs = HANDLE_SIZE / @camera.zoom
       handle_positions(bounds).each do |(_, center)|
@@ -394,7 +449,7 @@ class Canvas
     end
 
     # Blinking text cursor — each element type draws its own cursor.
-    @elements[idx].draw_cursor
+    el.draw_cursor
   end
 
   private def rect_from_points(a : R::Vector2, b : R::Vector2) : R::Rectangle

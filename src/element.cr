@@ -220,3 +220,124 @@ class TextElement < Element
     R.draw_text("|", cx, cy, FONT_SIZE, TEXT_COLOR)
   end
 end
+
+# ─── Arrow ────────────────────────────────────────────────────────────────────
+
+# A directional arrow connecting two other elements by their UUIDs.
+# Endpoints are resolved at draw-time from the shared elements array so the
+# arrow automatically tracks elements as they move.
+class ArrowElement < Element
+  ARROW_COLOR    = R::Color.new(r: 60, g: 60, b: 60, a: 220)
+  ARROW_WIDTH    = 2.0_f32
+  ARROWHEAD_LEN  = 14.0_f32
+  ARROWHEAD_HALF =  5.0_f32
+
+  property from_id : UUID
+  property to_id : UUID
+
+  # Reference to the canvas element list — updated at construction so the
+  # arrow can resolve from_id / to_id without coupling to Canvas directly.
+  @elements : Array(Element)
+
+  def initialize(@from_id : UUID, @to_id : UUID, @elements : Array(Element), id : UUID = UUID.random)
+    super(R::Rectangle.new(x: 0.0_f32, y: 0.0_f32, width: 0.0_f32, height: 0.0_f32), id)
+  end
+
+  def resizable? : Bool
+    false
+  end
+
+  # Arrows are not hit-tested via the normal bounding-rect check.
+  # Canvas calls near_line? instead so it can supply the zoom-aware threshold.
+  def contains?(world_point : R::Vector2) : Bool
+    false
+  end
+
+  # Returns true when *world_point* is within *threshold* world units of the
+  # arrow shaft.  Canvas divides a fixed screen-pixel constant by zoom before
+  # calling this so the click target stays constant in screen space.
+  def near_line?(world_point : R::Vector2, threshold : Float32) : Bool
+    from_el = resolve_from
+    to_el   = resolve_to
+    return false unless from_el && to_el
+    segment_dist(world_point, center_of(from_el.bounds), center_of(to_el.bounds)) <= threshold
+  end
+
+  def draw
+    from_el = resolve_from
+    to_el   = resolve_to
+    return unless from_el && to_el
+    a = center_of(from_el.bounds)
+    b = center_of(to_el.bounds)
+    draw_arrow(a, b, ARROW_COLOR, ARROW_WIDTH)
+    update_bounds(a, b)
+  end
+
+  # Draws the arrow in *color* at *width* — used by Canvas for the selection
+  # highlight without re-resolving elements a second time.
+  def draw_highlighted(color : R::Color, width : Float32)
+    from_el = resolve_from
+    to_el   = resolve_to
+    return unless from_el && to_el
+    draw_arrow(center_of(from_el.bounds), center_of(to_el.bounds), color, width)
+  end
+
+  private def resolve_from : Element?
+    @elements.find { |e| e.id == @from_id }
+  end
+
+  private def resolve_to : Element?
+    @elements.find { |e| e.id == @to_id }
+  end
+
+  private def center_of(b : R::Rectangle) : R::Vector2
+    R::Vector2.new(x: b.x + b.width / 2.0_f32, y: b.y + b.height / 2.0_f32)
+  end
+
+  private def update_bounds(a : R::Vector2, b : R::Vector2)
+    x = Math.min(a.x, b.x)
+    y = Math.min(a.y, b.y)
+    w = [(a.x - b.x).abs, 1.0_f32].max
+    h = [(a.y - b.y).abs, 1.0_f32].max
+    @bounds = R::Rectangle.new(x: x, y: y, width: w, height: h)
+  end
+
+  private def draw_arrow(a : R::Vector2, b : R::Vector2, color : R::Color, width : Float32)
+    dx = b.x - a.x
+    dy = b.y - a.y
+    len = Math.sqrt(dx * dx + dy * dy).to_f32
+    return if len < 1.0_f32
+
+    ux = dx / len  # unit direction
+    uy = dy / len
+    px = -uy       # perpendicular (left-hand side)
+    py =  ux
+
+    # Shaft stops just before the arrowhead base.
+    shaft_tip_x = b.x - ux * ARROWHEAD_LEN
+    shaft_tip_y = b.y - uy * ARROWHEAD_LEN
+    shaft_tip = R::Vector2.new(x: shaft_tip_x, y: shaft_tip_y)
+    R.draw_line_ex(a, shaft_tip, width, color)
+
+    # Filled arrowhead triangle (tip → left-base → right-base, CCW in screen Y-down).
+    tip   = b
+    left  = R::Vector2.new(x: shaft_tip_x + px * ARROWHEAD_HALF, y: shaft_tip_y + py * ARROWHEAD_HALF)
+    right = R::Vector2.new(x: shaft_tip_x - px * ARROWHEAD_HALF, y: shaft_tip_y - py * ARROWHEAD_HALF)
+    R.draw_triangle(tip, right, left, color)
+  end
+
+  # Minimum distance from point *p* to line segment *a*–*b*.
+  private def segment_dist(p : R::Vector2, a : R::Vector2, b : R::Vector2) : Float32
+    dx = b.x - a.x
+    dy = b.y - a.y
+    len_sq = dx * dx + dy * dy
+    if len_sq < 0.001_f32
+      return Math.sqrt((p.x - a.x)**2 + (p.y - a.y)**2).to_f32
+    end
+    t = ((p.x - a.x) * dx + (p.y - a.y) * dy) / len_sq
+    t = t.clamp(0.0_f32, 1.0_f32)
+    proj_x = a.x + t * dx
+    proj_y = a.y + t * dy
+    Math.sqrt((p.x - proj_x)**2 + (p.y - proj_y)**2).to_f32
+  end
+end

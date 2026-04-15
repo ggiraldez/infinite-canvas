@@ -94,3 +94,34 @@ class TextElement
     TextElementData.new(self)
   end
 end
+
+class ArrowElementData < ElementData
+  include JSON::Serializable
+
+  property type : String = "arrow"
+  property id : String = UUID.random.to_s
+  property from_id : String
+  property to_id : String
+
+  def initialize(e : ArrowElement)
+    @type    = "arrow"
+    @id      = e.id.to_s
+    @from_id = e.from_id.to_s
+    @to_id   = e.to_id.to_s
+  end
+
+  def to_element(elements : Array(Element)) : Element
+    ArrowElement.new(UUID.new(@from_id), UUID.new(@to_id), elements, UUID.new(@id))
+  end
+
+  # Satisfy the abstract contract — callers that need the elements list use to_element(elements).
+  def to_element : Element
+    raise "ArrowElementData requires the elements array; call to_element(elements) instead"
+  end
+end
+
+class ArrowElement
+  def to_data : ElementData
+    ArrowElementData.new(self)
+  end
+end
