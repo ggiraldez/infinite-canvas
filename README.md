@@ -3,8 +3,8 @@
 > This project is being built collaboratively with [Claude](https://claude.ai/claude-code) (Anthropic's AI assistant). The architecture, features, and code are developed through an iterative conversation — Claude writes and refines the implementation while the human steers the design.
 
 Crystal + Raylib desktop app: an infinite, pannable/zoomable canvas for
-sketching diagrams and taking notes. Supports rectangles with editable labels
-and plain text nodes.
+sketching diagrams and taking notes. Supports rectangles with editable labels,
+plain text nodes, and directional arrows connecting elements.
 
 ## Prerequisites
 
@@ -39,19 +39,19 @@ This places `libraylib.so` under `local/lib/`.
 
 ## Build & run
 
-Source `env.sh` to set the library paths, then use the standard shards commands:
+Inline `LIBRARY_PATH` when building so the linker finds the locally built Raylib:
 
 ```sh
-source env.sh
 shards install
-shards build --release
-./bin/infinite_canvas
+LIBRARY_PATH=$PWD/local/lib shards build --release
+LD_LIBRARY_PATH=$PWD/local/lib ./bin/infinite_canvas
 ```
 
-When Raylib is installed system-wide (e.g. via a package manager) the `source
-env.sh` step can be skipped.
+When Raylib is installed system-wide (e.g. via a package manager) the environment
+variables can be omitted. `env.sh` in the repo root exports both variables as a
+convenience (`source env.sh`) if you prefer that workflow.
 
-Both variables in `env.sh` point to the locally built Raylib:
+The two variables and their roles:
 
 | Variable | Purpose |
 |---|---|
@@ -73,12 +73,27 @@ Switch tools with the keyboard. The active tool is shown in the top-left HUD.
 
 | Key | Tool | Behaviour |
 |---|---|---|
-| `S` | **Select** (default) | Click an element to select it; click empty space to deselect; drag reserved for future multi-select |
+| `S` | **Select** (default) | Click an element to select it; click empty space to deselect |
 | `R` | **Rect** | Click to place a default-sized rectangle; drag to draw a custom size |
 | `T` | **Text** | Click to place a text node; drag to set an initial size |
+| `A` | **Arrow** | Drag from one element to another to create a directional connection |
 
-After placing an element with Rect or Text, the tool automatically returns to
-Select and the new element is selected.
+After placing an element or drawing an arrow, the tool automatically returns to
+Select and the new element is selected (arrows return to Select without selecting
+the arrow itself).
+
+### Arrows
+
+Arrows connect two elements by UUID, so they track the elements as they are moved
+or resized.
+
+- **Routing style** — each arrow is independently either *Orthogonal* (rectilinear
+  segments, default) or *Straight* (direct border-to-border line). Toggle with `Tab`
+  while an arrow is selected.
+- **Endpoint spreading** — when multiple orthogonal arrows share the same border side
+  of an element, their exit/entry points are spread evenly along that side and ordered
+  to minimise crossings.
+- **Cascade delete** — deleting an element also removes all arrows connected to it.
 
 ### Editing
 
@@ -87,7 +102,8 @@ Select and the new element is selected.
 | Edit label / text | Select an element, then type |
 | Insert newline | `Enter` |
 | Delete last character | `Backspace` |
-| Delete element | `Delete` |
+| Delete element | `Delete` (also removes connected arrows) |
+| Toggle arrow routing | `Tab` (while an arrow is selected) |
 
 ### Canvas navigation
 
@@ -101,9 +117,16 @@ Select and the new element is selected.
 The canvas is saved to `canvas.json` in the working directory on exit and
 restored automatically on next launch.
 
+### HUD
+
+The top-left overlay shows the active tool, element count, and zoom level. When
+an arrow is selected its routing style is shown with a reminder of the `Tab`
+toggle. The bottom-right corner shows a smoothed **draw time** (in ms, covering
+the world rendering and routing work each frame) alongside the FPS counter.
+
 ## Layout
 
 - `src/infinite_canvas.cr` — entry point, window setup, main loop, HUD
 - `src/canvas.cr` — camera, grid, input handling, element management
-- `src/element.cr` — `Element` base class, `RectElement`, `TextElement`
+- `src/element.cr` — `Element` base class, `RectElement`, `TextElement`, `ArrowElement`
 - `src/persistence.cr` — JSON serialization for save/load
