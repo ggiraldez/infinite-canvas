@@ -97,13 +97,23 @@ or resized.
 
 ### Editing
 
+Select any rectangle or text node to start editing its content immediately.
+
 | Action | Input |
 |---|---|
-| Edit label / text | Select an element, then type |
+| Insert character | Type while an element is selected |
 | Insert newline | `Enter` |
-| Delete last character | `Backspace` |
+| Delete character left of cursor | `Backspace` |
+| Move cursor | `←` / `→` / `↑` / `↓` |
+| Jump by word | `Ctrl+←` / `Ctrl+→` |
+| Extend selection | Hold `Shift` with any cursor movement key |
+| Delete selection | `Backspace` with an active selection |
+| Copy selection | `Ctrl+C` |
+| Paste (replaces selection) | `Ctrl+V` |
 | Delete element | `Delete` (also removes connected arrows) |
 | Toggle arrow routing | `Tab` (while an arrow is selected) |
+
+The cursor blinks after a short steady-on period following each keystroke, matching standard editor behaviour. Vertical navigation preserves the visual horizontal position across lines (sticky column), accounting for the proportional font.
 
 ### Canvas navigation
 
@@ -121,12 +131,12 @@ restored automatically on next launch.
 
 The top-left overlay shows the active tool, element count, and zoom level. When
 an arrow is selected its routing style is shown with a reminder of the `Tab`
-toggle. The bottom-right corner shows a smoothed **draw time** (in ms, covering
-the world rendering and routing work each frame) alongside the FPS counter.
+toggle. The bottom-right corner shows smoothed **update** and **draw** times (in
+ms, exponential moving average over ~10 frames) alongside the FPS counter.
 
 ## Layout
 
 - `src/infinite_canvas.cr` — entry point, window setup, main loop, HUD
 - `src/canvas.cr` — camera, grid, input handling, element management
-- `src/element.cr` — `Element` base class, `RectElement`, `TextElement`, `ArrowElement`
+- `src/element.cr` — `Element` base class, `TextEditing` mixin, `RectElement`, `TextElement`, `ArrowElement`
 - `src/persistence.cr` — JSON serialization for save/load
