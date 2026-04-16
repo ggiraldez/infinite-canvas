@@ -64,11 +64,16 @@ end
 # string field.  Including classes must implement:
 #   def editing_text : String
 #   def editing_text=(v : String)
+#   def editing_font_size : Int32
 module TextEditing
   @cursor_pos : Int32 = 0
   # Timestamp of the last keystroke — used to keep the cursor solid for 0.5 s
   # after input so it doesn't vanish mid-blink.
   @last_input_time : Float64 = 0.0
+  # Preferred pixel x for vertical navigation (sticky column).
+  # Set on the first Up/Down press and preserved across consecutive vertical
+  # moves; cleared whenever anything else changes the cursor position.
+  @preferred_x : Int32? = nil
 
   # Call at the end of initialize to place the cursor after existing text.
   private def init_cursor
@@ -80,6 +85,7 @@ module TextEditing
     chars.insert(@cursor_pos, ch)
     self.editing_text = chars.join
     @cursor_pos += 1
+    @preferred_x = nil
     reset_blink
   end
 
@@ -93,16 +99,19 @@ module TextEditing
     chars.delete_at(@cursor_pos - 1)
     self.editing_text = chars.join
     @cursor_pos -= 1
+    @preferred_x = nil
     reset_blink
   end
 
   def handle_cursor_left
     @cursor_pos = [@cursor_pos - 1, 0].max
+    @preferred_x = nil
     reset_blink
   end
 
   def handle_cursor_right
     @cursor_pos = [@cursor_pos + 1, editing_text.chars.size].min
+    @preferred_x = nil
     reset_blink
   end
 
@@ -110,9 +119,10 @@ module TextEditing
     return if @cursor_pos == 0
     lines_b = lines_before_cursor
     return if lines_b.size <= 1
-    current_col = lines_b.last.size
-    prev_line   = lines_b[-2]
-    new_col     = [current_col, prev_line.size].min
+    # Establish the sticky pixel column on the first upward move.
+    target_x = @preferred_x || R.measure_text(lines_b.last, editing_font_size)
+    @preferred_x = target_x
+    new_col     = nearest_col_for_x(lines_b[-2], target_x)
     prefix      = lines_b[0...-2].sum(0) { |l| l.size + 1 }
     @cursor_pos = prefix + new_col
     reset_blink
@@ -124,10 +134,11 @@ module TextEditing
     all_lines = editing_text.split('\n')
     line_idx  = lines_b.size - 1
     return if line_idx >= all_lines.size - 1
-    current_col = lines_b.last.size
-    next_line   = all_lines[line_idx + 1]
-    new_col     = [current_col, next_line.size].min
-    prefix      = (0..line_idx).sum { |i| all_lines[i].size + 1 }
+    # Establish the sticky pixel column on the first downward move.
+    target_x  = @preferred_x || R.measure_text(lines_b.last, editing_font_size)
+    @preferred_x = target_x
+    new_col   = nearest_col_for_x(all_lines[line_idx + 1], target_x)
+    prefix    = (0..line_idx).sum { |i| all_lines[i].size + 1 }
     @cursor_pos = prefix + new_col
     reset_blink
   end
@@ -142,6 +153,18 @@ module TextEditing
   # split on newlines.  Always has at least one element.
   private def lines_before_cursor : Array(String)
     editing_text.chars[0...@cursor_pos].join.split('\n')
+  end
+
+  # Returns the character column on *line* whose left edge is closest to
+  # *target_x* pixels, using the midpoint of each glyph as the snap boundary.
+  private def nearest_col_for_x(line : String, target_x : Int32) : Int32
+    prev_x = 0
+    line.chars.each_with_index do |_, i|
+      curr_x = R.measure_text(line.chars[0, i + 1].join, editing_font_size)
+      return i if target_x < (prev_x + curr_x) / 2
+      prev_x = curr_x
+    end
+    line.chars.size
   end
 
   private def reset_blink
@@ -170,6 +193,10 @@ class RectElement < Element
 
   def editing_text=(v : String)
     @label = v
+  end
+
+  def editing_font_size : Int32
+    LABEL_FONT_SIZE
   end
 
   def initialize(bounds : R::Rectangle,
@@ -270,6 +297,10 @@ class TextElement < Element
 
   def editing_text=(v : String)
     @text = v
+  end
+
+  def editing_font_size : Int32
+    FONT_SIZE
   end
 
   def initialize(bounds : R::Rectangle, @text : String = "", id : UUID = UUID.random)
