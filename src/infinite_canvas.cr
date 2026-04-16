@@ -16,7 +16,8 @@ module InfiniteCanvas
     canvas = Canvas.new(WINDOW_WIDTH, WINDOW_HEIGHT)
     canvas.load
 
-    smooth_draw_ms = 0.0_f64
+    smooth_update_ms = 0.0_f64
+    smooth_draw_ms   = 0.0_f64
 
     until R.close_window?
       # Keep the camera offset pinned to the window centre when resized so
@@ -26,15 +27,12 @@ module InfiniteCanvas
         y: R.get_screen_height / 2.0_f32,
       )
 
-      canvas.update
+      smooth_update_ms = timed_ema(smooth_update_ms) { canvas.update }
 
       R.begin_drawing
       R.clear_background(Canvas::BACKGROUND)
-      t0 = Time.instant
-      canvas.draw
-      draw_ms = (Time.instant - t0).total_milliseconds
-      smooth_draw_ms = smooth_draw_ms * 0.9 + draw_ms * 0.1
-      draw_hud(canvas, smooth_draw_ms)
+      smooth_draw_ms = timed_ema(smooth_draw_ms) { canvas.draw }
+      draw_hud(canvas, smooth_update_ms, smooth_draw_ms)
       R.end_drawing
     end
 
@@ -42,15 +40,24 @@ module InfiniteCanvas
     R.close_window
   end
 
-  private def self.draw_hud(canvas : Canvas, smooth_draw_ms : Float64)
+  # Times the block and returns an exponential moving average of elapsed ms.
+  # α = 0.1 gives roughly a 10-frame smoothing window at 60 fps.
+  private def self.timed_ema(smooth : Float64, &) : Float64
+    t0 = Time.instant
+    yield
+    ms = (Time.instant - t0).total_milliseconds
+    smooth * 0.9 + ms * 0.1
+  end
+
+  private def self.draw_hud(canvas : Canvas, smooth_update_ms : Float64, smooth_draw_ms : Float64)
     R.draw_text("Tools: [S]elect  [R]ect  [T]ext  [A]rrow   active: #{canvas.active_tool}   |   Delete: Del", 12, 12, 20, R::DARKGRAY)
     R.draw_text("Pan: right/middle-drag   Zoom: wheel   Elements: #{canvas.elements.size}   Zoom: #{canvas.camera.zoom.round(2)}x", 12, 36, 20, R::GRAY)
     if (el = canvas.selected_element).is_a?(ArrowElement)
       R.draw_text("Arrow routing: #{el.routing_style}   [Tab] to toggle", 12, 60, 20, R::DARKGRAY)
     end
-    draw_label = "draw: #{smooth_draw_ms.round(2)}ms"
-    label_w = R.measure_text(draw_label, 20)
-    R.draw_text(draw_label, R.get_screen_width - 110 - label_w, R.get_screen_height - 30, 20, R::GRAY)
+    timing_label = "update: #{smooth_update_ms.round(2)}ms  draw: #{smooth_draw_ms.round(2)}ms"
+    label_w = R.measure_text(timing_label, 20)
+    R.draw_text(timing_label, R.get_screen_width - 110 - label_w, R.get_screen_height - 30, 20, R::GRAY)
     R.draw_fps(R.get_screen_width - 100, R.get_screen_height - 30)
   end
 end
