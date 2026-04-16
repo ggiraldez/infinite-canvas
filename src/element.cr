@@ -39,12 +39,14 @@ abstract class Element
   def handle_backspace; end
 
   # Cursor movement — no-op in the base class; TextElement overrides these.
-  def handle_cursor_left; end
-  def handle_cursor_right; end
-  def handle_cursor_word_left; end
-  def handle_cursor_word_right; end
-  def handle_cursor_up; end
-  def handle_cursor_down; end
+  def handle_cursor_left(shift : Bool = false); end
+  def handle_cursor_right(shift : Bool = false); end
+  def handle_cursor_word_left(shift : Bool = false); end
+  def handle_cursor_word_right(shift : Bool = false); end
+  def handle_cursor_up(shift : Bool = false); end
+  def handle_cursor_down(shift : Bool = false); end
+  # Clears any active text selection — no-op unless the element uses TextEditing.
+  def clear_selection; end
 
   # Whether the element can be manually resized by dragging handles.
   # Text nodes return false — their size is always derived from their content.
@@ -69,13 +71,14 @@ end
 #   def editing_font_size : Int32
 module TextEditing
   @cursor_pos : Int32 = 0
-  # Timestamp of the last keystroke — used to keep the cursor solid for 0.5 s
-  # after input so it doesn't vanish mid-blink.
+  # Timestamp of the last keystroke — keeps the cursor solid for 0.5 s after input.
   @last_input_time : Float64 = 0.0
   # Preferred pixel x for vertical navigation (sticky column).
-  # Set on the first Up/Down press and preserved across consecutive vertical
-  # moves; cleared whenever anything else changes the cursor position.
+  # Set on the first Up/Down press; cleared by any other cursor movement.
   @preferred_x : Int32? = nil
+  # Fixed end of any active selection; nil = no selection.
+  # @cursor_pos is the "active" (moving) end.
+  @selection_anchor : Int32? = nil
 
   # Call at the end of initialize to place the cursor after existing text.
   private def init_cursor
@@ -83,6 +86,7 @@ module TextEditing
   end
 
   def handle_char_input(ch : Char)
+    delete_selection                 # replace selection if one exists
     chars = editing_text.chars
     chars.insert(@cursor_pos, ch)
     self.editing_text = chars.join
@@ -96,6 +100,11 @@ module TextEditing
   end
 
   def handle_backspace
+    if delete_selection              # delete selection if one exists
+      @preferred_x = nil
+      reset_blink
+      return
+    end
     return if @cursor_pos == 0
     chars = editing_text.chars
     chars.delete_at(@cursor_pos - 1)
@@ -105,22 +114,24 @@ module TextEditing
     reset_blink
   end
 
-  def handle_cursor_left
+  def handle_cursor_left(shift : Bool = false)
+    anchor_for_shift(shift)
     @cursor_pos = [@cursor_pos - 1, 0].max
     @preferred_x = nil
     reset_blink
   end
 
-  def handle_cursor_right
+  def handle_cursor_right(shift : Bool = false)
+    anchor_for_shift(shift)
     @cursor_pos = [@cursor_pos + 1, editing_text.chars.size].min
     @preferred_x = nil
     reset_blink
   end
 
-  def handle_cursor_word_left
+  def handle_cursor_word_left(shift : Bool = false)
+    anchor_for_shift(shift)
     chars = editing_text.chars
     pos = @cursor_pos
-    # Skip whitespace to the left, then skip the preceding word.
     while pos > 0 && chars[pos - 1].whitespace?; pos -= 1; end
     while pos > 0 && !chars[pos - 1].whitespace?; pos -= 1; end
     @cursor_pos = pos
@@ -128,11 +139,11 @@ module TextEditing
     reset_blink
   end
 
-  def handle_cursor_word_right
+  def handle_cursor_word_right(shift : Bool = false)
+    anchor_for_shift(shift)
     chars = editing_text.chars
     pos = @cursor_pos
     size = chars.size
-    # Skip whitespace to the right, then skip the following word.
     while pos < size && chars[pos].whitespace?; pos += 1; end
     while pos < size && !chars[pos].whitespace?; pos += 1; end
     @cursor_pos = pos
@@ -140,11 +151,11 @@ module TextEditing
     reset_blink
   end
 
-  def handle_cursor_up
+  def handle_cursor_up(shift : Bool = false)
+    anchor_for_shift(shift)
     return if @cursor_pos == 0
     lines_b = lines_before_cursor
     return if lines_b.size <= 1
-    # Establish the sticky pixel column on the first upward move.
     target_x = @preferred_x || R.measure_text(lines_b.last, editing_font_size)
     @preferred_x = target_x
     new_col     = nearest_col_for_x(lines_b[-2], target_x)
@@ -153,13 +164,13 @@ module TextEditing
     reset_blink
   end
 
-  def handle_cursor_down
+  def handle_cursor_down(shift : Bool = false)
+    anchor_for_shift(shift)
     return if @cursor_pos == editing_text.chars.size
     lines_b   = lines_before_cursor
     all_lines = editing_text.split('\n')
     line_idx  = lines_b.size - 1
     return if line_idx >= all_lines.size - 1
-    # Establish the sticky pixel column on the first downward move.
     target_x  = @preferred_x || R.measure_text(lines_b.last, editing_font_size)
     @preferred_x = target_x
     new_col   = nearest_col_for_x(all_lines[line_idx + 1], target_x)
@@ -168,14 +179,39 @@ module TextEditing
     reset_blink
   end
 
+  # Returns {min_pos, max_pos} when there is a non-empty selection, nil otherwise.
+  def selection_range : {Int32, Int32}?
+    return nil unless (anchor = @selection_anchor) && anchor != @cursor_pos
+    {[anchor, @cursor_pos].min, [anchor, @cursor_pos].max}
+  end
+
+  # Clears the active selection. Called when another element gains focus.
+  def clear_selection
+    @selection_anchor = nil
+  end
+
   # True when the cursor glyph should be drawn this frame.
   def cursor_visible? : Bool
     now = R.get_time
     (now - @last_input_time < 0.5) || ((now * 2.0).to_i % 2 == 0)
   end
 
-  # Text of each line that comes before (and including) the cursor's line,
-  # split on newlines.  Always has at least one element.
+  # For a selection [sel_start, sel_end), returns an array of
+  # {line_index, col_start, col_end} for each line that overlaps the selection.
+  private def selection_line_ranges(sel_start : Int32, sel_end : Int32) : Array({Int32, Int32, Int32})
+    result = [] of {Int32, Int32, Int32}
+    pos = 0
+    editing_text.split('\n').each_with_index do |line, line_idx|
+      len = line.chars.size
+      if pos < sel_end && pos + len > sel_start
+        result << {line_idx, [sel_start - pos, 0].max, [sel_end - pos, len].min}
+      end
+      pos += len + 1
+      break if pos >= sel_end
+    end
+    result
+  end
+
   private def lines_before_cursor : Array(String)
     editing_text.chars[0...@cursor_pos].join.split('\n')
   end
@@ -192,6 +228,26 @@ module TextEditing
     line.chars.size
   end
 
+  # Sets @selection_anchor when shift is held; clears it otherwise.
+  private def anchor_for_shift(shift : Bool)
+    if shift
+      @selection_anchor ||= @cursor_pos
+    else
+      @selection_anchor = nil
+    end
+  end
+
+  # Deletes the selected text and repositions the cursor at the selection start.
+  # Returns true if a deletion was made (so callers can return early).
+  private def delete_selection : Bool
+    return false unless (range = selection_range)
+    chars = editing_text.chars
+    self.editing_text = (chars[0...range[0]] + chars[range[1]...chars.size]).join
+    @cursor_pos = range[0]
+    @selection_anchor = nil
+    true
+  end
+
   private def reset_blink
     @last_input_time = R.get_time
   end
@@ -202,10 +258,11 @@ end
 class RectElement < Element
   include TextEditing
 
-  LABEL_FONT_SIZE = 20
-  LABEL_COLOR     = R::Color.new(r: 255, g: 255, b: 255, a: 230)
-  LABEL_PADDING_H = 16  # minimum horizontal padding on each side
-  LABEL_PADDING_V = 12  # minimum vertical padding on each side
+  LABEL_FONT_SIZE  = 20
+  LABEL_COLOR      = R::Color.new(r: 255, g: 255, b: 255, a: 230)
+  SELECTION_COLOR  = R::Color.new(r: 255, g: 255, b: 255, a: 70)
+  LABEL_PADDING_H  = 16  # minimum horizontal padding on each side
+  LABEL_PADDING_V  = 12  # minimum vertical padding on each side
 
   property fill : R::Color
   property stroke : R::Color
@@ -249,15 +306,29 @@ class RectElement < Element
   end
 
   def draw_cursor
+    all_lines = label.split('\n')
+    total_h   = all_lines.size * LABEL_FONT_SIZE
+
+    if (range = selection_range)
+      selection_line_ranges(range[0], range[1]).each do |line_idx, col_start, col_end|
+        line    = all_lines.fetch(line_idx, "")
+        chars   = line.chars
+        full_tw = R.measure_text(line, LABEL_FONT_SIZE)
+        line_x  = bounds.x + (bounds.width - full_tw) / 2.0_f32
+        x1 = line_x + R.measure_text(chars[0, col_start].join, LABEL_FONT_SIZE)
+        x2 = line_x + R.measure_text(chars[0, col_end].join, LABEL_FONT_SIZE)
+        y  = bounds.y + (bounds.height - total_h) / 2.0_f32 + line_idx * LABEL_FONT_SIZE
+        R.draw_rectangle_rec(R::Rectangle.new(x: x1, y: y, width: x2 - x1, height: LABEL_FONT_SIZE.to_f32), SELECTION_COLOR)
+      end
+    end
+
     return unless cursor_visible?
-    lines_b    = lines_before_cursor
-    line_idx   = lines_b.size - 1
-    col_text   = lines_b.last
-    all_lines  = label.split('\n')
-    cur_line   = all_lines.fetch(line_idx, "")
-    full_tw    = R.measure_text(cur_line, LABEL_FONT_SIZE)
-    col_tw     = R.measure_text(col_text, LABEL_FONT_SIZE)
-    total_h    = all_lines.size * LABEL_FONT_SIZE
+    lines_b  = lines_before_cursor
+    line_idx = lines_b.size - 1
+    col_text = lines_b.last
+    cur_line = all_lines.fetch(line_idx, "")
+    full_tw  = R.measure_text(cur_line, LABEL_FONT_SIZE)
+    col_tw   = R.measure_text(col_text, LABEL_FONT_SIZE)
     # Text on each line is centred; cursor sits at the end of col_text on cur_line.
     cx = (bounds.x + (bounds.width - full_tw) / 2.0_f32 + col_tw).to_i
     cy = (bounds.y + (bounds.height - total_h) / 2.0_f32 + line_idx * LABEL_FONT_SIZE).to_i
@@ -310,9 +381,10 @@ end
 class TextElement < Element
   include TextEditing
 
-  FONT_SIZE  = 20
-  TEXT_COLOR = R::Color.new(r: 30, g: 30, b: 30, a: 255)
-  PADDING    =  8  # padding on each side in world units
+  FONT_SIZE       = 20
+  TEXT_COLOR      = R::Color.new(r: 30, g: 30, b: 30, a: 255)
+  SELECTION_COLOR = R::Color.new(r: 66, g: 135, b: 245, a: 100)
+  PADDING         =  8  # padding on each side in world units
 
   property text : String
 
@@ -367,6 +439,18 @@ class TextElement < Element
   end
 
   def draw_cursor
+    if (range = selection_range)
+      all_lines = text.split('\n')
+      selection_line_ranges(range[0], range[1]).each do |line_idx, col_start, col_end|
+        line  = all_lines.fetch(line_idx, "")
+        chars = line.chars
+        x1 = bounds.x + PADDING + R.measure_text(chars[0, col_start].join, FONT_SIZE)
+        x2 = bounds.x + PADDING + R.measure_text(chars[0, col_end].join, FONT_SIZE)
+        y  = bounds.y + PADDING + line_idx * FONT_SIZE
+        R.draw_rectangle_rec(R::Rectangle.new(x: x1, y: y, width: x2 - x1, height: FONT_SIZE.to_f32), SELECTION_COLOR)
+      end
+    end
+
     return unless cursor_visible?
     lines_b  = lines_before_cursor
     line_idx = lines_b.size - 1

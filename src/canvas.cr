@@ -189,7 +189,7 @@ class Canvas
           removed_at = cleanup_empty_text_selection
           unless removed_at == idx
             idx -= 1 if removed_at && idx > removed_at
-            @selected_index = idx
+            select_element(idx)
             @drag_mode = DragMode::Moving
             @drag_start_mouse = mouse_world
             @drag_start_bounds = @elements[idx].bounds
@@ -197,12 +197,12 @@ class Canvas
         else
           # Empty space: clear selection. Drag is reserved for future multi-select.
           cleanup_empty_text_selection
-          @selected_index = nil
+          select_element(nil)
         end
       elsif @active_tool.arrow?
         # Arrow tool: press on a non-arrow element to begin connecting.
         cleanup_empty_text_selection
-        @selected_index = nil
+        select_element(nil)
         if (idx = hit_test_element(mouse_world)) && !@elements[idx].is_a?(ArrowElement)
           @arrow_source_index = idx
           @drag_mode = DragMode::Connecting
@@ -216,7 +216,7 @@ class Canvas
       else
         # Rect / Text tool: skip hit-testing entirely and always start drawing.
         cleanup_empty_text_selection
-        @selected_index = nil
+        select_element(nil)
         @drag_mode = DragMode::Drawing
         @draw_start = mouse_world
         @draw_current = mouse_world
@@ -279,7 +279,7 @@ class Canvas
           if el
             el.fit_content
             @elements << el
-            @selected_index = @elements.size - 1
+            select_element(@elements.size - 1)
             @active_tool = ActiveTool::Selection
           end
         end
@@ -312,19 +312,20 @@ class Canvas
       el.handle_backspace
     end
 
-    # Arrow keys: move the cursor. Ctrl+Left/Right jumps by whole words.
-    ctrl = R.key_down?(R::KeyboardKey::LeftControl) || R.key_down?(R::KeyboardKey::RightControl)
+    # Arrow keys: move the cursor. Ctrl jumps by word; Shift extends selection.
+    ctrl  = R.key_down?(R::KeyboardKey::LeftControl) || R.key_down?(R::KeyboardKey::RightControl)
+    shift = R.key_down?(R::KeyboardKey::LeftShift)   || R.key_down?(R::KeyboardKey::RightShift)
     if R.key_pressed?(R::KeyboardKey::Left) || R.key_pressed_repeat?(R::KeyboardKey::Left)
-      ctrl ? el.handle_cursor_word_left : el.handle_cursor_left
+      ctrl ? el.handle_cursor_word_left(shift) : el.handle_cursor_left(shift)
     end
     if R.key_pressed?(R::KeyboardKey::Right) || R.key_pressed_repeat?(R::KeyboardKey::Right)
-      ctrl ? el.handle_cursor_word_right : el.handle_cursor_right
+      ctrl ? el.handle_cursor_word_right(shift) : el.handle_cursor_right(shift)
     end
     if R.key_pressed?(R::KeyboardKey::Up) || R.key_pressed_repeat?(R::KeyboardKey::Up)
-      el.handle_cursor_up
+      el.handle_cursor_up(shift)
     end
     if R.key_pressed?(R::KeyboardKey::Down) || R.key_pressed_repeat?(R::KeyboardKey::Down)
-      el.handle_cursor_down
+      el.handle_cursor_down(shift)
     end
 
     el.fit_content
@@ -359,6 +360,15 @@ class Canvas
     @active_tool = ActiveTool::Rect      if R.key_pressed?(R::KeyboardKey::R)
     @active_tool = ActiveTool::Text      if R.key_pressed?(R::KeyboardKey::T)
     @active_tool = ActiveTool::Arrow     if R.key_pressed?(R::KeyboardKey::A)
+  end
+
+  # Changes @selected_index, clearing any text selection on the element losing focus.
+  private def select_element(new_idx : Int32?)
+    old_idx = @selected_index
+    if old_idx != new_idx
+      @elements[old_idx].clear_selection if old_idx && old_idx < @elements.size
+      @selected_index = new_idx
+    end
   end
 
   # If the selected element is a TextElement with empty text, remove it and
