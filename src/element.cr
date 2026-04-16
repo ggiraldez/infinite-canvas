@@ -38,6 +38,12 @@ abstract class Element
   # Called when Backspace is pressed while this element is selected.
   def handle_backspace; end
 
+  # Cursor movement — no-op in the base class; TextElement overrides these.
+  def handle_cursor_left; end
+  def handle_cursor_right; end
+  def handle_cursor_up; end
+  def handle_cursor_down; end
+
   # Whether the element can be manually resized by dragging handles.
   # Text nodes return false — their size is always derived from their content.
   def resizable? : Bool
@@ -52,9 +58,102 @@ abstract class Element
   def draw_cursor; end
 end
 
+# ─── TextEditing mixin ────────────────────────────────────────────────────────
+
+# Shared cursor-aware text editing behaviour for any element with an editable
+# string field.  Including classes must implement:
+#   def editing_text : String
+#   def editing_text=(v : String)
+module TextEditing
+  @cursor_pos : Int32 = 0
+  # Timestamp of the last keystroke — used to keep the cursor solid for 0.5 s
+  # after input so it doesn't vanish mid-blink.
+  @last_input_time : Float64 = 0.0
+
+  # Call at the end of initialize to place the cursor after existing text.
+  private def init_cursor
+    @cursor_pos = editing_text.chars.size
+  end
+
+  def handle_char_input(ch : Char)
+    chars = editing_text.chars
+    chars.insert(@cursor_pos, ch)
+    self.editing_text = chars.join
+    @cursor_pos += 1
+    reset_blink
+  end
+
+  def handle_enter
+    handle_char_input('\n')
+  end
+
+  def handle_backspace
+    return if @cursor_pos == 0
+    chars = editing_text.chars
+    chars.delete_at(@cursor_pos - 1)
+    self.editing_text = chars.join
+    @cursor_pos -= 1
+    reset_blink
+  end
+
+  def handle_cursor_left
+    @cursor_pos = [@cursor_pos - 1, 0].max
+    reset_blink
+  end
+
+  def handle_cursor_right
+    @cursor_pos = [@cursor_pos + 1, editing_text.chars.size].min
+    reset_blink
+  end
+
+  def handle_cursor_up
+    return if @cursor_pos == 0
+    lines_b = lines_before_cursor
+    return if lines_b.size <= 1
+    current_col = lines_b.last.size
+    prev_line   = lines_b[-2]
+    new_col     = [current_col, prev_line.size].min
+    prefix      = lines_b[0...-2].sum(0) { |l| l.size + 1 }
+    @cursor_pos = prefix + new_col
+    reset_blink
+  end
+
+  def handle_cursor_down
+    return if @cursor_pos == editing_text.chars.size
+    lines_b   = lines_before_cursor
+    all_lines = editing_text.split('\n')
+    line_idx  = lines_b.size - 1
+    return if line_idx >= all_lines.size - 1
+    current_col = lines_b.last.size
+    next_line   = all_lines[line_idx + 1]
+    new_col     = [current_col, next_line.size].min
+    prefix      = (0..line_idx).sum { |i| all_lines[i].size + 1 }
+    @cursor_pos = prefix + new_col
+    reset_blink
+  end
+
+  # True when the cursor glyph should be drawn this frame.
+  def cursor_visible? : Bool
+    now = R.get_time
+    (now - @last_input_time < 0.5) || ((now * 2.0).to_i % 2 == 0)
+  end
+
+  # Text of each line that comes before (and including) the cursor's line,
+  # split on newlines.  Always has at least one element.
+  private def lines_before_cursor : Array(String)
+    editing_text.chars[0...@cursor_pos].join.split('\n')
+  end
+
+  private def reset_blink
+    @last_input_time = R.get_time
+  end
+end
+
 # ─── Rectangle ────────────────────────────────────────────────────────────────
 
 class RectElement < Element
+  include TextEditing
+
   LABEL_FONT_SIZE = 20
   LABEL_COLOR     = R::Color.new(r: 255, g: 255, b: 255, a: 230)
   LABEL_PADDING_H = 16  # minimum horizontal padding on each side
@@ -65,6 +164,14 @@ class RectElement < Element
   property stroke_width : Float32
   property label : String
 
+  def editing_text : String
+    @label
+  end
+
+  def editing_text=(v : String)
+    @label = v
+  end
+
   def initialize(bounds : R::Rectangle,
                  @fill : R::Color = R::Color.new(r: 90, g: 140, b: 220, a: 200),
                  @stroke : R::Color = R::Color.new(r: 30, g: 60, b: 120, a: 255),
@@ -72,6 +179,7 @@ class RectElement < Element
                  @label : String = "",
                  id : UUID = UUID.random)
     super(bounds, id)
+    init_cursor
   end
 
   def draw
@@ -84,30 +192,23 @@ class RectElement < Element
     {label_min_width, label_min_height}
   end
 
-  def handle_char_input(ch : Char)
-    @label += ch.to_s
-  end
-
-  def handle_enter
-    @label += "\n"
-  end
-
-  def handle_backspace
-    @label = @label.rchop
-  end
-
   def fit_content
     fit_label
   end
 
   def draw_cursor
-    return unless (R.get_time * 2.0).to_i % 2 == 0
-    lines = label.split('\n')
-    last_line = lines.last
-    tw = R.measure_text(last_line, LABEL_FONT_SIZE)
-    total_height = lines.size * LABEL_FONT_SIZE
-    cx = (bounds.x + (bounds.width + tw) / 2.0_f32).to_i
-    cy = (bounds.y + (bounds.height - total_height) / 2.0_f32 + (lines.size - 1) * LABEL_FONT_SIZE).to_i
+    return unless cursor_visible?
+    lines_b    = lines_before_cursor
+    line_idx   = lines_b.size - 1
+    col_text   = lines_b.last
+    all_lines  = label.split('\n')
+    cur_line   = all_lines.fetch(line_idx, "")
+    full_tw    = R.measure_text(cur_line, LABEL_FONT_SIZE)
+    col_tw     = R.measure_text(col_text, LABEL_FONT_SIZE)
+    total_h    = all_lines.size * LABEL_FONT_SIZE
+    # Text on each line is centred; cursor sits at the end of col_text on cur_line.
+    cx = (bounds.x + (bounds.width - full_tw) / 2.0_f32 + col_tw).to_i
+    cy = (bounds.y + (bounds.height - total_h) / 2.0_f32 + line_idx * LABEL_FONT_SIZE).to_i
     R.draw_text("|", cx, cy, LABEL_FONT_SIZE, LABEL_COLOR)
   end
 
@@ -155,14 +256,25 @@ end
 
 # A plain text node: no background rectangle, text top-left aligned within bounds.
 class TextElement < Element
+  include TextEditing
+
   FONT_SIZE  = 20
   TEXT_COLOR = R::Color.new(r: 30, g: 30, b: 30, a: 255)
   PADDING    =  8  # padding on each side in world units
 
   property text : String
 
+  def editing_text : String
+    @text
+  end
+
+  def editing_text=(v : String)
+    @text = v
+  end
+
   def initialize(bounds : R::Rectangle, @text : String = "", id : UUID = UUID.random)
     super(bounds, id)
+    init_cursor
   end
 
   def resizable? : Bool
@@ -192,18 +304,6 @@ class TextElement < Element
     {(max_tw + PADDING * 2).to_f32, (lines.size * FONT_SIZE + PADDING * 2).to_f32}
   end
 
-  def handle_char_input(ch : Char)
-    @text += ch.to_s
-  end
-
-  def handle_enter
-    @text += "\n"
-  end
-
-  def handle_backspace
-    @text = @text.rchop
-  end
-
   def fit_content
     mw, mh = min_size
     # Text nodes are always sized to exactly fit their content — never larger.
@@ -211,12 +311,13 @@ class TextElement < Element
   end
 
   def draw_cursor
-    return unless (R.get_time * 2.0).to_i % 2 == 0
-    lines = text.split('\n')
-    last_line = lines.last
-    tw = R.measure_text(last_line, FONT_SIZE)
+    return unless cursor_visible?
+    lines_b  = lines_before_cursor
+    line_idx = lines_b.size - 1
+    col_text = lines_b.last
+    tw = R.measure_text(col_text, FONT_SIZE)
     cx = bounds.x.to_i + PADDING + tw
-    cy = (bounds.y + PADDING + (lines.size - 1) * FONT_SIZE).to_i
+    cy = (bounds.y + PADDING + line_idx * FONT_SIZE).to_i
     R.draw_text("|", cx, cy, FONT_SIZE, TEXT_COLOR)
   end
 end

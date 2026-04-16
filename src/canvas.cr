@@ -307,9 +307,23 @@ class Canvas
       el.handle_enter
     end
 
-    # Backspace: trim the last character (no-op when already empty).
+    # Backspace: delete the character before the cursor.
     if R.key_pressed?(R::KeyboardKey::Backspace) || R.key_pressed_repeat?(R::KeyboardKey::Backspace)
       el.handle_backspace
+    end
+
+    # Arrow keys: move the cursor.
+    if R.key_pressed?(R::KeyboardKey::Left) || R.key_pressed_repeat?(R::KeyboardKey::Left)
+      el.handle_cursor_left
+    end
+    if R.key_pressed?(R::KeyboardKey::Right) || R.key_pressed_repeat?(R::KeyboardKey::Right)
+      el.handle_cursor_right
+    end
+    if R.key_pressed?(R::KeyboardKey::Up) || R.key_pressed_repeat?(R::KeyboardKey::Up)
+      el.handle_cursor_up
+    end
+    if R.key_pressed?(R::KeyboardKey::Down) || R.key_pressed_repeat?(R::KeyboardKey::Down)
+      el.handle_cursor_down
     end
 
     el.fit_content
