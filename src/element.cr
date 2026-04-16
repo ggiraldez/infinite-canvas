@@ -41,6 +41,8 @@ abstract class Element
   # Cursor movement — no-op in the base class; TextElement overrides these.
   def handle_cursor_left; end
   def handle_cursor_right; end
+  def handle_cursor_word_left; end
+  def handle_cursor_word_right; end
   def handle_cursor_up; end
   def handle_cursor_down; end
 
@@ -111,6 +113,29 @@ module TextEditing
 
   def handle_cursor_right
     @cursor_pos = [@cursor_pos + 1, editing_text.chars.size].min
+    @preferred_x = nil
+    reset_blink
+  end
+
+  def handle_cursor_word_left
+    chars = editing_text.chars
+    pos = @cursor_pos
+    # Skip whitespace to the left, then skip the preceding word.
+    while pos > 0 && chars[pos - 1].whitespace?; pos -= 1; end
+    while pos > 0 && !chars[pos - 1].whitespace?; pos -= 1; end
+    @cursor_pos = pos
+    @preferred_x = nil
+    reset_blink
+  end
+
+  def handle_cursor_word_right
+    chars = editing_text.chars
+    pos = @cursor_pos
+    size = chars.size
+    # Skip whitespace to the right, then skip the following word.
+    while pos < size && chars[pos].whitespace?; pos += 1; end
+    while pos < size && !chars[pos].whitespace?; pos += 1; end
+    @cursor_pos = pos
     @preferred_x = nil
     reset_blink
   end

@@ -312,12 +312,13 @@ class Canvas
       el.handle_backspace
     end
 
-    # Arrow keys: move the cursor.
+    # Arrow keys: move the cursor. Ctrl+Left/Right jumps by whole words.
+    ctrl = R.key_down?(R::KeyboardKey::LeftControl) || R.key_down?(R::KeyboardKey::RightControl)
     if R.key_pressed?(R::KeyboardKey::Left) || R.key_pressed_repeat?(R::KeyboardKey::Left)
-      el.handle_cursor_left
+      ctrl ? el.handle_cursor_word_left : el.handle_cursor_left
     end
     if R.key_pressed?(R::KeyboardKey::Right) || R.key_pressed_repeat?(R::KeyboardKey::Right)
-      el.handle_cursor_right
+      ctrl ? el.handle_cursor_word_right : el.handle_cursor_right
     end
     if R.key_pressed?(R::KeyboardKey::Up) || R.key_pressed_repeat?(R::KeyboardKey::Up)
       el.handle_cursor_up
