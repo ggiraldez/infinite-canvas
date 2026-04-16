@@ -48,6 +48,12 @@ abstract class Element
   # Clears any active text selection — no-op unless the element uses TextEditing.
   def clear_selection; end
 
+  # Returns the selected text as a String, or nil if there is no selection.
+  def handle_copy : String?; nil; end
+
+  # Inserts text at the cursor, replacing any active selection.
+  def handle_paste(text : String); end
+
   # Whether the element can be manually resized by dragging handles.
   # Text nodes return false — their size is always derived from their content.
   def resizable? : Bool
@@ -188,6 +194,22 @@ module TextEditing
   # Clears the active selection. Called when another element gains focus.
   def clear_selection
     @selection_anchor = nil
+  end
+
+  def handle_copy : String?
+    return nil unless (range = selection_range)
+    editing_text.chars[range[0]...range[1]].join
+  end
+
+  def handle_paste(text : String)
+    return if text.empty?
+    delete_selection
+    chars = editing_text.chars
+    self.editing_text = (chars[0...@cursor_pos] + text.chars + chars[@cursor_pos...chars.size]).join
+    @cursor_pos += text.chars.size
+    @preferred_x = nil
+    reset_blink
+    fit_content
   end
 
   # True when the cursor glyph should be drawn this frame.

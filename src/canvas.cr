@@ -315,6 +315,17 @@ class Canvas
     # Arrow keys: move the cursor. Ctrl jumps by word; Shift extends selection.
     ctrl  = R.key_down?(R::KeyboardKey::LeftControl) || R.key_down?(R::KeyboardKey::RightControl)
     shift = R.key_down?(R::KeyboardKey::LeftShift)   || R.key_down?(R::KeyboardKey::RightShift)
+
+    # Clipboard: Ctrl+C copies selection, Ctrl+V pastes (replacing selection).
+    if ctrl && R.key_pressed?(R::KeyboardKey::C)
+      if (copied = el.handle_copy)
+        R.set_clipboard_text(copied)
+      end
+    end
+    if ctrl && (R.key_pressed?(R::KeyboardKey::V) || R.key_pressed_repeat?(R::KeyboardKey::V))
+      cb = String.new(R.get_clipboard_text.as(Pointer(UInt8)))
+      el.handle_paste(cb) unless cb.empty?
+    end
     if R.key_pressed?(R::KeyboardKey::Left) || R.key_pressed_repeat?(R::KeyboardKey::Left)
       ctrl ? el.handle_cursor_word_left(shift) : el.handle_cursor_left(shift)
     end
