@@ -104,6 +104,7 @@ Select any rectangle or text node to start editing its content immediately.
 | Insert character | Type while an element is selected |
 | Insert newline | `Enter` |
 | Delete character left of cursor | `Backspace` |
+| Delete word left of cursor | `Ctrl+Backspace` |
 | Move cursor | `←` / `→` / `↑` / `↓` |
 | Jump by word | `Ctrl+←` / `Ctrl+→` |
 | Extend selection | Hold `Shift` with any cursor movement key |
@@ -137,6 +138,12 @@ ms, exponential moving average over ~10 frames) alongside the FPS counter.
 ## Layout
 
 - `src/infinite_canvas.cr` — entry point, window setup, main loop, HUD
-- `src/canvas.cr` — camera, grid, input handling, element management
-- `src/element.cr` — `Element` base class, `TextEditing` mixin, `RectElement`, `TextElement`, `ArrowElement`
-- `src/persistence.cr` — JSON serialization for save/load
+- `src/canvas.cr` — `Canvas` class skeleton: constants, enums, state, `initialize`, `save`/`load`, `update`, `draw`
+- `src/canvas_input.cr` — all input handlers (`handle_pan`, `handle_zoom`, `handle_left_mouse`, `handle_text_input`, …), hit-testing, and resize geometry
+- `src/canvas_drawing.cr` — drawing helpers (`draw_grid`, `draw_selection`, `draw_draft`)
+- `src/element.cr` — `Element` abstract base class and `ElementData` interface
+- `src/text_editing.cr` — `TextEditing` mixin: cursor, selection, word movement, clipboard
+- `src/rect_element.cr` — `RectElement`: filled rectangle with centred multi-line label
+- `src/text_element.cr` — `TextElement`: plain text node, always sized to content
+- `src/arrow_element.cr` — `ArrowElement`: orthogonal/straight routing, endpoint spreading
+- `src/persistence.cr` — JSON serialisation mirror structs for save/load
