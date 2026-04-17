@@ -16,6 +16,7 @@ class Canvas
   DEFAULT_RECT_W   = 160.0_f32 # default width when a rect is created by click
   DEFAULT_RECT_H   = 100.0_f32 # default height when a rect is created by click
   SAVE_FILE        = "canvas.json"
+  SEL_DRAG_FILL    = R::Color.new(r: 0, g: 120, b: 255, a: 25)
   # Discrete zoom steps: a geometric series of 2^(i/4) filtered to [0.1, 10.0].
   # Four steps per octave gives smooth scrolling while guaranteeing that every
   # exact power of two (0.125, 0.25, 0.5, 1.0, 2.0, 4.0, 8.0) is always
@@ -30,6 +31,7 @@ class Canvas
     Moving
     Resizing
     Connecting  # Arrow tool: dragging from a source element to a target element
+    Selecting   # Selection tool: rubber-band drag over empty space
   end
 
   enum Handle
@@ -54,6 +56,9 @@ class Canvas
   @drag_mode : DragMode = DragMode::None
   @selected_index : Int32? = nil
 
+  # Multi-selection: indices of all selected elements (non-empty only when > 1 selected).
+  @selected_indices : Array(Int32) = [] of Int32
+
   # Drawing state
   @draw_start : R::Vector2?
   @draw_current : R::Vector2?
@@ -62,6 +67,9 @@ class Canvas
   @drag_start_mouse : R::Vector2?
   @drag_start_bounds : R::Rectangle?
   @active_handle : Handle?
+
+  # Starting bounds for all elements during a multi-element move.
+  @multi_drag_starts : Array(R::Rectangle)?
 
   # Arrow-connecting state: index of the source element while dragging a new arrow.
   @arrow_source_index : Int32? = nil

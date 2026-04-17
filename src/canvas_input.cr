@@ -43,20 +43,30 @@ class Canvas
           @drag_start_mouse = mouse_world
           @drag_start_bounds = @elements[idx].bounds
         elsif (idx = hit_test_element(mouse_world))
-          # If the clicked element was itself an empty text node, clean it up and
-          # skip selection. Otherwise adjust the index if cleanup shifted things.
-          removed_at = cleanup_empty_text_selection
-          unless removed_at == idx
-            idx -= 1 if removed_at && idx > removed_at
-            select_element(idx)
+          if in_multi_selection?(idx)
+            # Clicked inside an existing multi-selection: begin moving all of them.
             @drag_mode = DragMode::Moving
             @drag_start_mouse = mouse_world
-            @drag_start_bounds = @elements[idx].bounds
+            @multi_drag_starts = @selected_indices.map { |i| @elements[i].bounds }
+          else
+            # If the clicked element was itself an empty text node, clean it up and
+            # skip selection. Otherwise adjust the index if cleanup shifted things.
+            removed_at = cleanup_empty_text_selection
+            unless removed_at == idx
+              idx -= 1 if removed_at && idx > removed_at
+              select_element(idx)
+              @drag_mode = DragMode::Moving
+              @drag_start_mouse = mouse_world
+              @drag_start_bounds = @elements[idx].bounds
+            end
           end
         else
-          # Empty space: clear selection. Drag is reserved for future multi-select.
+          # Empty space: clear selection and start a rubber-band drag.
           cleanup_empty_text_selection
           select_element(nil)
+          @drag_mode = DragMode::Selecting
+          @draw_start = mouse_world
+          @draw_current = mouse_world
         end
       elsif @active_tool.arrow?
         # Arrow tool: press on a non-arrow element to begin connecting.
@@ -83,10 +93,20 @@ class Canvas
 
     elsif R.mouse_button_down?(R::MouseButton::Left)
       case @drag_mode
-      when DragMode::Drawing, DragMode::Connecting
+      when DragMode::Drawing, DragMode::Connecting, DragMode::Selecting
         @draw_current = mouse_world
       when DragMode::Moving
-        if (idx = @selected_index) && (sm = @drag_start_mouse) && (sb = @drag_start_bounds)
+        if (starts = @multi_drag_starts) && (sm = @drag_start_mouse)
+          dx = mouse_world.x - sm.x
+          dy = mouse_world.y - sm.y
+          @selected_indices.each_with_index do |el_idx, i|
+            sb = starts[i]
+            @elements[el_idx].bounds = R::Rectangle.new(
+              x: sb.x + dx, y: sb.y + dy,
+              width: sb.width, height: sb.height,
+            )
+          end
+        elsif (idx = @selected_index) && (sm = @drag_start_mouse) && (sb = @drag_start_bounds)
           dx = mouse_world.x - sm.x
           dy = mouse_world.y - sm.y
           @elements[idx].bounds = R::Rectangle.new(
@@ -103,7 +123,24 @@ class Canvas
       end
 
     elsif R.mouse_button_released?(R::MouseButton::Left)
-      if @drag_mode.connecting?
+      if @drag_mode.selecting?
+        # Finish rubber-band: select all non-arrow elements whose bounds overlap the rect.
+        if (start = @draw_start) && (current = @draw_current)
+          sel_rect = rect_from_points(start, current)
+          indices = (0...@elements.size).select do |i|
+            el = @elements[i]
+            !el.is_a?(ArrowElement) && rects_overlap?(sel_rect, el.bounds)
+          end.to_a
+          if indices.size == 1
+            select_element(indices.first)
+          elsif indices.size > 1
+            select_multi(indices)
+          end
+        end
+        @draw_start = nil
+        @draw_current = nil
+        @drag_mode = DragMode::None
+      elsif @drag_mode.connecting?
         # Create an arrow if the mouse was released over a different non-arrow element.
         if (src_idx = @arrow_source_index) && (tgt_idx = hit_test_element(mouse_world))
           if tgt_idx != src_idx && !@elements[tgt_idx].is_a?(ArrowElement)
@@ -149,6 +186,7 @@ class Canvas
       @drag_start_mouse = nil
       @drag_start_bounds = nil
       @active_handle = nil
+      @multi_drag_starts = nil
     end
   end
 
@@ -202,8 +240,15 @@ class Canvas
   end
 
   private def handle_delete
-    return unless (idx = @selected_index)
-    if R.key_pressed?(R::KeyboardKey::Delete) || R.key_pressed_repeat?(R::KeyboardKey::Delete)
+    return unless R.key_pressed?(R::KeyboardKey::Delete) || R.key_pressed_repeat?(R::KeyboardKey::Delete)
+    if multi_selected?
+      ids = @selected_indices.map { |i| @elements[i].id }.to_set
+      @elements.reject! do |e|
+        ids.includes?(e.id) ||
+          (e.is_a?(ArrowElement) && (ids.includes?(e.from_id) || ids.includes?(e.to_id)))
+      end
+      @selected_indices = [] of Int32
+    elsif (idx = @selected_index)
       deleted_id = @elements[idx].id
       @elements.delete_at(idx)
       @elements.reject! { |e| e.is_a?(ArrowElement) && (e.from_id == deleted_id || e.to_id == deleted_id) }
@@ -226,19 +271,54 @@ class Canvas
   # the keys remain available for text input when editing.
   private def handle_tool_switch
     return if @selected_index
-    @active_tool = ActiveTool::Selection if R.key_pressed?(R::KeyboardKey::S)
-    @active_tool = ActiveTool::Rect      if R.key_pressed?(R::KeyboardKey::R)
-    @active_tool = ActiveTool::Text      if R.key_pressed?(R::KeyboardKey::T)
-    @active_tool = ActiveTool::Arrow     if R.key_pressed?(R::KeyboardKey::A)
+    if R.key_pressed?(R::KeyboardKey::S)
+      @selected_indices = [] of Int32
+      @active_tool = ActiveTool::Selection
+    elsif R.key_pressed?(R::KeyboardKey::R)
+      @selected_indices = [] of Int32
+      @active_tool = ActiveTool::Rect
+    elsif R.key_pressed?(R::KeyboardKey::T)
+      @selected_indices = [] of Int32
+      @active_tool = ActiveTool::Text
+    elsif R.key_pressed?(R::KeyboardKey::A)
+      @selected_indices = [] of Int32
+      @active_tool = ActiveTool::Arrow
+    end
   end
 
   # Changes @selected_index, clearing any text selection on the element losing focus.
+  # Also clears multi-selection.
   private def select_element(new_idx : Int32?)
     old_idx = @selected_index
+    @selected_indices = [] of Int32
     if old_idx != new_idx
       @elements[old_idx].clear_selection if old_idx && old_idx < @elements.size
       @selected_index = new_idx
     end
+  end
+
+  # Activates multi-selection, clearing any single-selected element.
+  private def select_multi(indices : Array(Int32))
+    old_idx = @selected_index
+    @elements[old_idx].clear_selection if old_idx && old_idx < @elements.size
+    @selected_index = nil
+    @selected_indices = indices
+  end
+
+  # Returns true when more than one element is selected.
+  private def multi_selected? : Bool
+    @selected_indices.size > 1
+  end
+
+  # Returns true if *idx* is part of the current multi-selection.
+  private def in_multi_selection?(idx : Int32) : Bool
+    @selected_indices.includes?(idx)
+  end
+
+  # True if two rectangles overlap (share any area).
+  private def rects_overlap?(a : R::Rectangle, b : R::Rectangle) : Bool
+    a.x < b.x + b.width && a.x + a.width > b.x &&
+      a.y < b.y + b.height && a.y + a.height > b.y
   end
 
   # If the selected element is a TextElement with empty text, remove it and

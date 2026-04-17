@@ -4,6 +4,11 @@ class Canvas
     if @drag_mode.connecting?
       # Arrow preview: dashed line from source center to current mouse position.
       R.draw_line_ex(start, current, 2.0_f32 / @camera.zoom, DRAFT_STROKE)
+    elsif @drag_mode.selecting?
+      # Rubber-band selection rect.
+      rect = rect_from_points(start, current)
+      R.draw_rectangle_rec(rect, SEL_DRAG_FILL)
+      R.draw_rectangle_lines_ex(rect, 1.5_f32 / @camera.zoom, SEL_COLOR)
     else
       rect = rect_from_points(start, current)
       R.draw_rectangle_rec(rect, DRAFT_FILL)
@@ -12,6 +17,17 @@ class Canvas
   end
 
   private def draw_selection
+    # Multi-selection: outlines only, no handles or cursor.
+    if @selected_indices.size > 1
+      thickness = 2.0_f32 / @camera.zoom
+      @selected_indices.each do |idx|
+        next unless idx < @elements.size
+        el = @elements[idx]
+        R.draw_rectangle_lines_ex(el.bounds, thickness, SEL_COLOR)
+      end
+      return
+    end
+
     return unless (idx = @selected_index) && idx < @elements.size
     el = @elements[idx]
     thickness = 2.0_f32 / @camera.zoom
