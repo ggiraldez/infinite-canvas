@@ -141,9 +141,25 @@ class Canvas
   def draw
     R.begin_mode_2d(@camera)
     draw_grid
+
+    # Compute the visible world-space rectangle for culling.
+    sw = R.get_screen_width.to_f32
+    sh = R.get_screen_height.to_f32
+    tl = R.get_screen_to_world_2d(R::Vector2.new(x: 0.0_f32, y: 0.0_f32), @camera)
+    br = R.get_screen_to_world_2d(R::Vector2.new(x: sw, y: sh), @camera)
+    viewport = R::Rectangle.new(x: tl.x, y: tl.y, width: br.x - tl.x, height: br.y - tl.y)
+
     # Arrows first so they appear behind shapes and text.
+    # Arrow bounds start at (0,0,0,0) and are only updated during draw, so they
+    # are always drawn regardless of viewport (they are cheap line primitives).
     @elements.each { |e| e.draw if e.is_a?(ArrowElement) }
-    @elements.each { |e| e.draw unless e.is_a?(ArrowElement) }
+
+    # Non-arrow elements are culled against the viewport.
+    @elements.each do |e|
+      next if e.is_a?(ArrowElement)
+      e.draw if rects_overlap?(e.bounds, viewport)
+    end
+
     draw_selection
     draw_draft
     R.end_mode_2d
