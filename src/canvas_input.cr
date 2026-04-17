@@ -131,6 +131,11 @@ class Canvas
           shift = R.key_down?(R::KeyboardKey::LeftShift) || R.key_down?(R::KeyboardKey::RightShift)
           target = shift ? R::Vector2.new(x: snap_to_grid(mouse_world.x), y: snap_to_grid(mouse_world.y)) : mouse_world
           el.bounds = apply_resize(h, sb, sm, target, min_w, min_h)
+          # For TextElements, lock in the user-chosen width and re-flow height live.
+          if el.is_a?(TextElement)
+            el.fixed_width = true
+            el.fit_content
+          end
         end
       end
 
@@ -185,6 +190,9 @@ class Canvas
             end
           end
           if el
+            if el.is_a?(TextElement)
+              el.max_auto_width = R.get_screen_width.to_f32 / (2.0_f32 * @camera.zoom)
+            end
             el.fit_content
             @elements << el
             select_element(@elements.size - 1)
@@ -248,6 +256,9 @@ class Canvas
       el.handle_cursor_down(shift)
     end
 
+    if el.is_a?(TextElement)
+      el.max_auto_width = R.get_screen_width.to_f32 / (2.0_f32 * @camera.zoom)
+    end
     el.fit_content
   end
 
@@ -366,12 +377,17 @@ class Canvas
   end
 
   # Returns which resize handle the mouse is over, or nil.
+  # Width-only elements (TextElement) expose only the left and right edge handles.
   private def hit_test_handles(mouse_world : R::Vector2) : Handle?
     return nil unless (idx = @selected_index)
     return nil unless idx < @elements.size
-    return nil unless @elements[idx].resizable?
+    el = @elements[idx]
+    return nil unless el.resizable?
     half = (HANDLE_SIZE / 2.0_f32) / @camera.zoom
-    handle_positions(@elements[idx].bounds).each do |(handle, center)|
+    handles = el.resizable_width_only? ?
+      handle_positions(el.bounds).select { |(h, _)| h.e? || h.w? } :
+      handle_positions(el.bounds)
+    handles.each do |(handle, center)|
       return handle if (mouse_world.x - center.x).abs <= half &&
                        (mouse_world.y - center.y).abs <= half
     end

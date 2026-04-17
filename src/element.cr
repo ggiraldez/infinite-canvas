@@ -63,6 +63,12 @@ abstract class Element
     true
   end
 
+  # Whether resize handles are limited to the left and right edges only.
+  # TextElement uses this so only width can be dragged; height stays dynamic.
+  def resizable_width_only? : Bool
+    false
+  end
+
   # Expands bounds if content no longer fits after a text change.
   def fit_content; end
 

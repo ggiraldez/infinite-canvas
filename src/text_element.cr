@@ -10,6 +10,11 @@ class TextElement < Element
   PADDING         =  8  # padding on each side in world units
 
   property text : String
+  property fixed_width : Bool
+  # Set by Canvas each time fit_content is called; limits auto-grow width.
+  property max_auto_width : Float32? = nil
+  # True when auto-width is soft-capped (not user-set, but content exceeds cap).
+  @auto_capped : Bool = false
 
   def editing_text : String
     @text
@@ -23,45 +28,239 @@ class TextElement < Element
     FONT_SIZE
   end
 
-  def initialize(bounds : R::Rectangle, @text : String = "", id : UUID = UUID.random)
+  def initialize(bounds : R::Rectangle, @text : String = "", id : UUID = UUID.random, @fixed_width : Bool = false)
     super(bounds, id)
     init_cursor
   end
 
   def resizable? : Bool
-    false
+    true
+  end
+
+  def resizable_width_only? : Bool
+    true
+  end
+
+  # True when the text should be rendered with word-wrap:
+  # either the user explicitly set a width, or auto-width hit the cap.
+  def wraps? : Bool
+    @fixed_width || @auto_capped
   end
 
   def draw
     return if text.empty?
-    lines = text.split('\n')
-    lines.each_with_index do |line, i|
-      R.draw_text(line,
-        bounds.x.to_i + PADDING,
-        (bounds.y + PADDING + i * FONT_SIZE).to_i,
-        FONT_SIZE, TEXT_COLOR)
+    if wraps?
+      visual_line_runs.each_with_index do |(line, _), i|
+        R.draw_text(line,
+          bounds.x.to_i + PADDING,
+          (bounds.y + PADDING + i * FONT_SIZE).to_i,
+          FONT_SIZE, TEXT_COLOR)
+      end
+    else
+      text.split('\n').each_with_index do |line, i|
+        R.draw_text(line,
+          bounds.x.to_i + PADDING,
+          (bounds.y + PADDING + i * FONT_SIZE).to_i,
+          FONT_SIZE, TEXT_COLOR)
+      end
     end
   end
 
   def min_size : {Float32, Float32}
+    # Minimum allowed width for resize clamping — narrow enough to allow free dragging.
+    min_w = (PADDING * 2 + R.measure_text("W", FONT_SIZE)).to_f32
     if text.empty?
-      # Reserve enough space for the blinking cursor with padding on all sides,
-      # so a freshly-created text node looks intentional rather than invisible.
-      cursor_w = R.measure_text("|", FONT_SIZE)
-      return {(cursor_w + PADDING * 2).to_f32, (FONT_SIZE + PADDING * 2).to_f32}
+      return {min_w, (FONT_SIZE + PADDING * 2).to_f32}
     end
-    lines = text.split('\n')
-    max_tw = lines.map { |l| R.measure_text(l, FONT_SIZE) }.max? || 0
-    {(max_tw + PADDING * 2).to_f32, (lines.size * FONT_SIZE + PADDING * 2).to_f32}
+    if wraps?
+      line_count = visual_line_runs.size
+      {min_w, (line_count * FONT_SIZE + PADDING * 2).to_f32}
+    else
+      lines = text.split('\n')
+      max_tw = lines.map { |l| R.measure_text(l, FONT_SIZE) }.max? || 0
+      {(max_tw + PADDING * 2).to_f32, (lines.size * FONT_SIZE + PADDING * 2).to_f32}
+    end
   end
 
   def fit_content
-    mw, mh = min_size
-    # Text nodes are always sized to exactly fit their content — never larger.
-    @bounds = R::Rectangle.new(x: bounds.x, y: bounds.y, width: mw, height: mh)
+    if @fixed_width
+      # User locked the width — preserve it, recompute height from wrapped content.
+      @auto_capped = false
+      line_count = text.empty? ? 1 : visual_line_runs.size
+      mh = (line_count * FONT_SIZE + PADDING * 2).to_f32
+      @bounds = R::Rectangle.new(x: bounds.x, y: bounds.y, width: bounds.width, height: mh)
+      return
+    end
+
+    # Auto mode: measure uncapped content size.
+    if text.empty?
+      cursor_w = R.measure_text("|", FONT_SIZE)
+      content_w = (cursor_w + PADDING * 2).to_f32
+      content_h = (FONT_SIZE + PADDING * 2).to_f32
+    else
+      lines = text.split('\n')
+      max_tw = lines.map { |l| R.measure_text(l, FONT_SIZE) }.max? || 0
+      content_w = (max_tw + PADDING * 2).to_f32
+      content_h = (lines.size * FONT_SIZE + PADDING * 2).to_f32
+    end
+
+    cap = @max_auto_width
+    if cap && content_w > cap
+      # Soft-cap: clamp width and wrap text for the height calculation.
+      @auto_capped = true
+      @bounds = R::Rectangle.new(x: bounds.x, y: bounds.y, width: cap, height: bounds.height)
+      line_count = text.empty? ? 1 : visual_line_runs.size
+      mh = (line_count * FONT_SIZE + PADDING * 2).to_f32
+      @bounds = R::Rectangle.new(x: bounds.x, y: bounds.y, width: cap, height: mh)
+    else
+      @auto_capped = false
+      @bounds = R::Rectangle.new(x: bounds.x, y: bounds.y, width: content_w, height: content_h)
+    end
   end
 
   def draw_cursor
+    if wraps?
+      draw_cursor_wrapped
+    else
+      draw_cursor_raw
+    end
+  end
+
+  def handle_cursor_up(shift : Bool = false)
+    return super unless wraps?
+    anchor_for_shift(shift)
+    runs = visual_line_runs
+    vi, x_px = cursor_visual_pos
+    return if vi == 0
+    target_x = @preferred_x || x_px
+    @preferred_x = target_x
+    prev_str, prev_start = runs[vi - 1]
+    @cursor_pos = prev_start + nearest_col_for_x(prev_str, target_x)
+    reset_blink
+  end
+
+  def handle_cursor_down(shift : Bool = false)
+    return super unless wraps?
+    anchor_for_shift(shift)
+    runs = visual_line_runs
+    vi, x_px = cursor_visual_pos
+    return if vi >= runs.size - 1
+    target_x = @preferred_x || x_px
+    @preferred_x = target_x
+    next_str, next_start = runs[vi + 1]
+    @cursor_pos = next_start + nearest_col_for_x(next_str, target_x)
+    reset_blink
+  end
+
+  # ─── private ──────────────────────────────────────────────────────────────────
+
+  # Returns visual lines as {line_text, start_offset_in_full_text} pairs.
+  # Wraps text to fit within (bounds.width - 2*PADDING) pixels, preserving
+  # explicit newlines and breaking at word boundaries where possible.
+  private def visual_line_runs : Array({String, Int32})
+    avail = [bounds.width - PADDING * 2, 1.0_f32].max
+    result = [] of {String, Int32}
+    full_offset = 0
+
+    text.split('\n').each do |para|
+      if para.empty?
+        result << {"", full_offset}
+        full_offset += 1  # account for the '\n' separator
+        next
+      end
+
+      para_chars = para.chars
+      para_len   = para_chars.size
+      line_start = 0
+
+      while line_start < para_len
+        # Find the index of the last character that still fits on one line.
+        last_fit = line_start - 1
+        idx = line_start
+        while idx < para_len
+          candidate = para_chars[line_start..idx].join
+          break if R.measure_text(candidate, FONT_SIZE) > avail
+          last_fit = idx
+          idx += 1
+        end
+
+        if last_fit < line_start
+          # Not even a single character fits — force one to avoid an infinite loop.
+          result << {para_chars[line_start].to_s, full_offset + line_start}
+          line_start += 1
+          next
+        end
+
+        if last_fit == para_len - 1
+          # Everything remaining fits on this visual line.
+          result << {para_chars[line_start..last_fit].join, full_offset + line_start}
+          line_start = para_len
+          next
+        end
+
+        # The character at last_fit+1 overflows. Search for the rightmost space in
+        # [line_start .. last_fit+1] — including last_fit+1 because if *it* is a
+        # space that is the natural word boundary to break at.
+        j = last_fit + 1
+        while j >= line_start && para_chars[j] != ' '
+          j -= 1
+        end
+
+        if j >= line_start
+          # Break at the space: line content is [line_start...j], next line starts at j+1.
+          result << {para_chars[line_start...j].join, full_offset + line_start}
+          line_start = j + 1
+        else
+          # No space found — hard break after the last fitting character.
+          result << {para_chars[line_start..last_fit].join, full_offset + line_start}
+          line_start = last_fit + 1
+        end
+      end
+
+      full_offset += para_len + 1  # +1 for the '\n' separator
+    end
+
+    result
+  end
+
+  # Maps @cursor_pos (character offset in full text) to
+  # {visual_line_index, x_pixel_offset_within_line}.
+  private def cursor_visual_pos : {Int32, Int32}
+    runs = visual_line_runs
+    return {0, 0} if runs.empty?
+
+    runs.each_with_index do |(line_str, line_start), vi|
+      next_start = vi + 1 < runs.size ? runs[vi + 1][1] : Int32::MAX
+      if @cursor_pos >= line_start && @cursor_pos < next_start
+        # Clamp to the end of the line in case cursor is on a swallowed space.
+        col = [@cursor_pos - line_start, line_str.chars.size].min
+        x_px = R.measure_text(line_str.chars[0...col].join, FONT_SIZE)
+        return {vi, x_px}
+      end
+    end
+
+    # Fallback: cursor at end of last line.
+    last_line = runs.last[0]
+    {runs.size - 1, R.measure_text(last_line, FONT_SIZE)}
+  end
+
+  # Returns {visual_line_idx, col_start, col_end} for each visual line that
+  # overlaps the character range [sel_start, sel_end).
+  private def visual_selection_ranges(sel_start : Int32, sel_end : Int32) : Array({Int32, Int32, Int32})
+    result = [] of {Int32, Int32, Int32}
+    visual_line_runs.each_with_index do |(line_str, line_start), vi|
+      line_chars = line_str.chars.size
+      line_end   = line_start + line_chars
+      if sel_start <= line_end && sel_end > line_start
+        col_start = [sel_start - line_start, 0].max
+        col_end   = [sel_end   - line_start, line_chars].min
+        result << {vi, col_start, col_end}
+      end
+    end
+    result
+  end
+
+  private def draw_cursor_raw
     if (range = selection_range)
       all_lines = text.split('\n')
       selection_line_ranges(range[0], range[1]).each do |line_idx, col_start, col_end|
@@ -81,6 +280,26 @@ class TextElement < Element
     tw = R.measure_text(col_text, FONT_SIZE)
     cx = bounds.x.to_i + PADDING + tw
     cy = (bounds.y + PADDING + line_idx * FONT_SIZE).to_i
+    R.draw_text("|", cx, cy, FONT_SIZE, TEXT_COLOR)
+  end
+
+  private def draw_cursor_wrapped
+    if (range = selection_range)
+      all_runs = visual_line_runs
+      visual_selection_ranges(range[0], range[1]).each do |vi, col_start, col_end|
+        line_str = all_runs.fetch(vi, {"", 0})[0]
+        chars    = line_str.chars
+        x1 = bounds.x + PADDING + R.measure_text(chars[0, col_start].join, FONT_SIZE)
+        x2 = bounds.x + PADDING + R.measure_text(chars[0, col_end].join, FONT_SIZE)
+        y  = bounds.y + PADDING + vi * FONT_SIZE
+        R.draw_rectangle_rec(R::Rectangle.new(x: x1, y: y, width: x2 - x1, height: FONT_SIZE.to_f32), SELECTION_COLOR)
+      end
+    end
+
+    return unless cursor_visible?
+    vi, x_px = cursor_visual_pos
+    cx = (bounds.x + PADDING + x_px).to_i
+    cy = (bounds.y + PADDING + vi * FONT_SIZE).to_i
     R.draw_text("|", cx, cy, FONT_SIZE, TEXT_COLOR)
   end
 end

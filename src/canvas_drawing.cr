@@ -50,10 +50,14 @@ class Canvas
     R.draw_rectangle_lines_ex(selection_rect(bounds), thickness, SEL_COLOR)
 
     # Draw resize handles as small squares — only for resizable elements.
+    # Width-only elements (TextElement) show just the left and right edge handles.
     if el.resizable?
       half = (HANDLE_SIZE / 2.0_f32) / @camera.zoom
       hs = HANDLE_SIZE / @camera.zoom
-      handle_positions(bounds).each do |(_, center)|
+      handles = el.resizable_width_only? ?
+        handle_positions(bounds).select { |(h, _)| h.e? || h.w? } :
+        handle_positions(bounds)
+      handles.each do |(_, center)|
         hr = R::Rectangle.new(x: center.x - half, y: center.y - half, width: hs, height: hs)
         R.draw_rectangle_rec(hr, R::WHITE)
         R.draw_rectangle_lines_ex(hr, 1.5_f32 / @camera.zoom, SEL_COLOR)

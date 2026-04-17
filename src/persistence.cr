@@ -63,6 +63,7 @@ class TextElementData < ElementData
   property width : Float32
   property height : Float32
   property text : String
+  property fixed_width : Bool = false
 
   def initialize(e : TextElement)
     @type = "text"
@@ -70,11 +71,12 @@ class TextElementData < ElementData
     b = e.bounds
     @x, @y, @width, @height = b.x, b.y, b.width, b.height
     @text = e.text
+    @fixed_width = e.fixed_width
   end
 
   def to_element : Element
     bounds = R::Rectangle.new(x: @x, y: @y, width: @width, height: @height)
-    TextElement.new(bounds, @text, UUID.new(@id))
+    TextElement.new(bounds, @text, UUID.new(@id), @fixed_width)
   end
 end
 
