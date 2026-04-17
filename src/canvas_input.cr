@@ -96,9 +96,17 @@ class Canvas
       when DragMode::Drawing, DragMode::Connecting, DragMode::Selecting
         @draw_current = mouse_world
       when DragMode::Moving
+        shift = R.key_down?(R::KeyboardKey::LeftShift) || R.key_down?(R::KeyboardKey::RightShift)
         if (starts = @multi_drag_starts) && (sm = @drag_start_mouse)
           dx = mouse_world.x - sm.x
           dy = mouse_world.y - sm.y
+          if shift && !starts.empty?
+            # Snap by anchoring the first element's corner to the snap grid and
+            # applying the same offset to all others, preserving relative positions.
+            anchor = starts[0]
+            dx = snap_to_grid(anchor.x + dx) - anchor.x
+            dy = snap_to_grid(anchor.y + dy) - anchor.y
+          end
           @selected_indices.each_with_index do |el_idx, i|
             sb = starts[i]
             @elements[el_idx].bounds = R::Rectangle.new(
@@ -109,8 +117,10 @@ class Canvas
         elsif (idx = @selected_index) && (sm = @drag_start_mouse) && (sb = @drag_start_bounds)
           dx = mouse_world.x - sm.x
           dy = mouse_world.y - sm.y
+          new_x = shift ? snap_to_grid(sb.x + dx) : sb.x + dx
+          new_y = shift ? snap_to_grid(sb.y + dy) : sb.y + dy
           @elements[idx].bounds = R::Rectangle.new(
-            x: sb.x + dx, y: sb.y + dy,
+            x: new_x, y: new_y,
             width: sb.width, height: sb.height,
           )
         end
@@ -118,7 +128,9 @@ class Canvas
         if (idx = @selected_index) && (h = @active_handle) && (sm = @drag_start_mouse) && (sb = @drag_start_bounds)
           el = @elements[idx]
           min_w, min_h = el.min_size
-          el.bounds = apply_resize(h, sb, sm, mouse_world, min_w, min_h)
+          shift = R.key_down?(R::KeyboardKey::LeftShift) || R.key_down?(R::KeyboardKey::RightShift)
+          target = shift ? R::Vector2.new(x: snap_to_grid(mouse_world.x), y: snap_to_grid(mouse_world.y)) : mouse_world
+          el.bounds = apply_resize(h, sb, sm, target, min_w, min_h)
         end
       end
 
@@ -313,6 +325,11 @@ class Canvas
   # Returns true if *idx* is part of the current multi-selection.
   private def in_multi_selection?(idx : Int32) : Bool
     @selected_indices.includes?(idx)
+  end
+
+  # Snaps *v* to the nearest snap-grid line.
+  private def snap_to_grid(v : Float32) : Float32
+    (v / SNAP_GRID).round * SNAP_GRID
   end
 
   # True if two rectangles overlap (share any area).

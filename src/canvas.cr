@@ -6,6 +6,7 @@ require "./persistence"
 # Infinite canvas: owns the Camera2D, the element list, and input handling.
 class Canvas
   GRID_SPACING     =  50.0_f32
+  SNAP_GRID        =  10.0_f32 # snap resolution: 5× finer than the drawn grid
   GRID_COLOR_MINOR = R::Color.new(r: 235, g: 235, b: 235, a: 255)
   GRID_COLOR_MAJOR = R::Color.new(r: 210, g: 210, b: 210, a: 255)
   BACKGROUND       = R::Color.new(r: 250, g: 250, b: 250, a: 255)

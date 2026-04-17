@@ -16,21 +16,29 @@ class Canvas
     end
   end
 
+  # Returns a rectangle expanded outward by *px* screen pixels, so the
+  # selection ring sits on the canvas background rather than on the element fill.
+  private def selection_rect(b : R::Rectangle, px : Float32 = 3.0_f32) : R::Rectangle
+    exp = px / @camera.zoom
+    R::Rectangle.new(x: b.x - exp, y: b.y - exp,
+                     width: b.width + exp * 2, height: b.height + exp * 2)
+  end
+
   private def draw_selection
     # Multi-selection: outlines only, no handles or cursor.
     if @selected_indices.size > 1
-      thickness = 2.0_f32 / @camera.zoom
+      thickness = 2.5_f32 / @camera.zoom
       @selected_indices.each do |idx|
         next unless idx < @elements.size
         el = @elements[idx]
-        R.draw_rectangle_lines_ex(el.bounds, thickness, SEL_COLOR)
+        R.draw_rectangle_lines_ex(selection_rect(el.bounds), thickness, SEL_COLOR)
       end
       return
     end
 
     return unless (idx = @selected_index) && idx < @elements.size
     el = @elements[idx]
-    thickness = 2.0_f32 / @camera.zoom
+    thickness = 2.5_f32 / @camera.zoom
 
     if el.is_a?(ArrowElement)
       # Highlight the arrow line itself instead of drawing a bounding box.
@@ -39,7 +47,7 @@ class Canvas
     end
 
     bounds = el.bounds
-    R.draw_rectangle_lines_ex(bounds, thickness, SEL_COLOR)
+    R.draw_rectangle_lines_ex(selection_rect(bounds), thickness, SEL_COLOR)
 
     # Draw resize handles as small squares — only for resizable elements.
     if el.resizable?
