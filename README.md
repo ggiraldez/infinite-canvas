@@ -116,14 +116,23 @@ Select any rectangle or text node to start editing its content immediately.
 
 The cursor blinks after a short steady-on period following each keystroke, matching standard editor behaviour. Vertical navigation preserves the visual horizontal position across lines (sticky column), accounting for the proportional font.
 
+### Text node word wrap
+
+Text nodes auto-size to their content by default. They cap at **half the screen width** — once text would exceed this, it wraps automatically. To set a custom width, drag the **left or right resize handle** of a selected text node. From that point on the width is locked and text reflows to fit; the height always adjusts dynamically. Dragging the handle back or resizing larger works the same way. `↑` / `↓` navigate by visual (wrapped) lines when word wrap is active.
+
+### Multiple selection
+
+Drag an empty area with the Select tool to rubber-band select multiple elements. All selected elements can be moved together. Holding `Shift` snaps the move to the grid.
+
 ### Canvas navigation
 
 | Action | Input |
 |---|---|
 | Move element | Drag a selected element (Select tool) |
-| Resize element | Drag a handle on a selected rectangle (Select tool) |
+| Resize element | Drag a handle on a selected element (Select tool) |
 | Pan canvas | Right-drag or middle-drag |
 | Zoom | Mouse wheel — snaps to well-known levels (0.25×, 0.5×, 1×, 2×, …) |
+| Snap to grid | Hold `Shift` while moving or resizing |
 
 The canvas is saved to `canvas.json` in the working directory on exit and
 restored automatically on next launch.
@@ -144,6 +153,6 @@ ms, exponential moving average over ~10 frames) alongside the FPS counter.
 - `src/element.cr` — `Element` abstract base class and `ElementData` interface
 - `src/text_editing.cr` — `TextEditing` mixin: cursor, selection, word movement, clipboard
 - `src/rect_element.cr` — `RectElement`: filled rectangle with centred multi-line label
-- `src/text_element.cr` — `TextElement`: plain text node, always sized to content
+- `src/text_element.cr` — `TextElement`: plain text node, auto-sized with optional word wrap
 - `src/arrow_element.cr` — `ArrowElement`: orthogonal/straight routing, endpoint spreading
 - `src/persistence.cr` — JSON serialisation mirror structs for save/load
