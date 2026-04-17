@@ -144,6 +144,33 @@ an arrow is selected its routing style is shown with a reminder of the `Tab`
 toggle. The bottom-right corner shows smoothed **update** and **draw** times (in
 ms, exponential moving average over ~10 frames) alongside the FPS counter.
 
+## Performance notes
+
+### Viewport culling
+
+Every frame, non-arrow elements are culled against the visible world-space rectangle before drawing. The visible rect is computed from the `Camera2D` by projecting the screen corners to world space; any element whose bounding rect does not overlap is skipped entirely. Arrow elements are exempt from culling — their bounds are `(0,0,0,0)` at construction and only updated during `draw`, so they are always rendered (they are cheap line primitives).
+
+### Word-wrap layout (`visual_line_runs`)
+
+Laying out wrapped text requires knowing how wide any substring is. The naive approach — calling `MeasureText` on a growing prefix at each candidate break — is O(n²) in the number of characters per paragraph.
+
+`visual_line_runs` uses an O(n) prefix-sum to answer any substring-width query in O(1):
+
+1. **Single-character measurements** — `MeasureText(c)` is called once per character in the paragraph and stored in `char_ws`. This is the only O(n) pass over Raylib.
+2. **Prefix-sum array** — `prefix[i]` holds the sum of `char_ws[0..i-1]`. The width of the substring `s[a..b]` (using Raylib's formula, which adds `spacing` between — not after — adjacent characters) is:
+   ```
+   prefix[b+1] - prefix[a] + spacing * (b - a)
+   ```
+   where `spacing = fontSize / 10` (Raylib's default inter-character gap).
+3. **Interpolation-seeded binary search** — instead of bisecting from the middle each time, the first candidate is estimated by assuming uniform character width:
+   ```
+   est ≈ line_start + avail_width * remaining_chars / full_remaining_width
+   ```
+   This places the pivot near the true answer in one step, reducing average binary search iterations to roughly O(log log n) in practice for text with homogeneous character widths. The search then converges with standard bisection.
+4. **Word-break scan** — after the binary search finds `last_fit` (the last character that fits on the line), the algorithm scans rightward looking for a space to break on, including the character immediately after `last_fit` (which handles the case where the overflow position is itself a space).
+
+The net result is O(n) per paragraph (dominated by the single-char measurement pass) regardless of line count.
+
 ## Layout
 
 - `src/infinite_canvas.cr` — entry point, window setup, main loop, HUD
