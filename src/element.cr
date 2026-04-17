@@ -38,6 +38,9 @@ abstract class Element
   # Called when Backspace is pressed while this element is selected.
   def handle_backspace; end
 
+  # Called when Ctrl+Backspace is pressed — deletes the word left of the cursor.
+  def handle_backspace_word; end
+
   # Cursor movement — no-op in the base class; TextElement overrides these.
   def handle_cursor_left(shift : Bool = false); end
   def handle_cursor_right(shift : Bool = false); end

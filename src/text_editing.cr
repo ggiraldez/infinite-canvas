@@ -50,6 +50,23 @@ module TextEditing
     reset_blink
   end
 
+  def handle_backspace_word
+    if delete_selection
+      @preferred_x = nil
+      reset_blink
+      return
+    end
+    return if @cursor_pos == 0
+    chars = editing_text.chars
+    pos = @cursor_pos
+    while pos > 0 && chars[pos - 1].whitespace?; pos -= 1; end
+    while pos > 0 && !chars[pos - 1].whitespace?; pos -= 1; end
+    self.editing_text = (chars[0...pos] + chars[@cursor_pos...chars.size]).join
+    @cursor_pos = pos
+    @preferred_x = nil
+    reset_blink
+  end
+
   def handle_cursor_left(shift : Bool = false)
     anchor_for_shift(shift)
     @cursor_pos = [@cursor_pos - 1, 0].max

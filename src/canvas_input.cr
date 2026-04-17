@@ -166,14 +166,14 @@ class Canvas
       el.handle_enter
     end
 
-    # Backspace: delete the character before the cursor.
-    if R.key_pressed?(R::KeyboardKey::Backspace) || R.key_pressed_repeat?(R::KeyboardKey::Backspace)
-      el.handle_backspace
-    end
-
     # Arrow keys: move the cursor. Ctrl jumps by word; Shift extends selection.
     ctrl  = R.key_down?(R::KeyboardKey::LeftControl) || R.key_down?(R::KeyboardKey::RightControl)
     shift = R.key_down?(R::KeyboardKey::LeftShift)   || R.key_down?(R::KeyboardKey::RightShift)
+
+    # Backspace: delete character (or word with Ctrl) before the cursor.
+    if R.key_pressed?(R::KeyboardKey::Backspace) || R.key_pressed_repeat?(R::KeyboardKey::Backspace)
+      ctrl ? el.handle_backspace_word : el.handle_backspace
+    end
 
     # Clipboard: Ctrl+C copies selection, Ctrl+V pastes (replacing selection).
     if ctrl && R.key_pressed?(R::KeyboardKey::C)
