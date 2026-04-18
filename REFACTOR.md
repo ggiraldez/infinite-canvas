@@ -17,7 +17,7 @@ Full conversion of the canvas from direct-mutation + Raylib-coupled elements to:
 - [x] Phase 2 — Events + apply function (`src/events.cr`, `src/apply.cr`)
 - [x] Phase 3 — History manager (`src/history.cr`)
 - [x] Phase 4 — Extract layout engine (`src/layout.cr`)
-- [ ] Phase 5 — Model as source of truth + view state separation
+- [x] Phase 5 — Model as source of truth + view state separation
 - [ ] Phase 6 — Extract renderer (`src/renderer.cr`)
 - [ ] Phase 7 — Model-based persistence (replace `*ElementData` mirror structs)
 - [ ] Phase 8 — Wire undo/redo (Ctrl+Z/Y)

@@ -140,7 +140,8 @@ class Canvas
       end
 
     elsif R.mouse_button_released?(R::MouseButton::Left)
-      if @drag_mode.selecting?
+      case @drag_mode
+      when DragMode::Selecting
         # Finish rubber-band: select all non-arrow elements whose bounds overlap the rect.
         if (start = @draw_start) && (current = @draw_current)
           sel_rect = rect_from_points(start, current)
@@ -154,58 +155,107 @@ class Canvas
             select_multi(indices)
           end
         end
-        @draw_start = nil
+        @draw_start   = nil
         @draw_current = nil
-        @drag_mode = DragMode::None
-      elsif @drag_mode.connecting?
+
+      when DragMode::Connecting
         # Create an arrow if the mouse was released over a different non-arrow element.
         if (src_idx = @arrow_source_index) && (tgt_idx = hit_test_element(mouse_world))
           if tgt_idx != src_idx && !@elements[tgt_idx].is_a?(ArrowElement)
-            arrow = ArrowElement.new(@elements[src_idx].id, @elements[tgt_idx].id, @elements)
-            @elements << arrow
+            from_id  = @elements[src_idx].id
+            to_id    = @elements[tgt_idx].id
+            arrow_id = UUID.random
+            emit(CreateArrowEvent.new(arrow_id, from_id, to_id))
             @active_tool = ActiveTool::Selection
           end
         end
         @arrow_source_index = nil
-        @draw_start = nil
-        @draw_current = nil
-        @drag_mode = DragMode::None
-      elsif @drag_mode.drawing?
+        @draw_start         = nil
+        @draw_current       = nil
+
+      when DragMode::Drawing
         if (start = @draw_start) && (current = @draw_current)
           dragged = rect_from_points(start, current)
           is_drag = dragged.width >= 4.0_f32 || dragged.height >= 4.0_f32
-          el = if is_drag
-            case @active_tool
-            when ActiveTool::Rect then RectElement.new(dragged)
-            when ActiveTool::Text then TextElement.new(dragged)
-            end
-          else
-            case @active_tool
-            when ActiveTool::Rect
-              RectElement.new(R::Rectangle.new(x: start.x, y: start.y,
-                                               width: DEFAULT_RECT_W, height: DEFAULT_RECT_H))
-            when ActiveTool::Text
-              TextElement.new(R::Rectangle.new(x: start.x, y: start.y,
-                                               width: 0.0_f32, height: 0.0_f32))
-            end
-          end
-          if el
-            if el.is_a?(TextElement)
-              el.max_auto_width = R.get_screen_width.to_f32 / (2.0_f32 * @camera.zoom)
-            end
-            el.fit_content
-            @elements << el
-            select_element(@elements.size - 1)
+          maw     = R.get_screen_width.to_f32 / (2.0_f32 * @camera.zoom)
+
+          case @active_tool
+          when ActiveTool::Rect
+            b = is_drag ? dragged
+                        : R::Rectangle.new(x: start.x, y: start.y,
+                                           width: DEFAULT_RECT_W, height: DEFAULT_RECT_H)
+            rect_id = UUID.random
+            fill    = ColorData.new(90_u8, 140_u8, 220_u8, 200_u8)
+            stroke  = ColorData.new(30_u8, 60_u8, 120_u8, 255_u8)
+            event   = CreateRectEvent.new(rect_id,
+                        BoundsData.new(b.x, b.y, b.width, b.height), fill, stroke, 2.0_f32)
+            emit(event)
+            select_element(@elements.index { |e| e.id == rect_id })
+            @active_tool = ActiveTool::Selection
+
+          when ActiveTool::Text
+            raw = is_drag ? R::Rectangle.new(x: start.x, y: start.y,
+                                             width: dragged.width, height: dragged.height)
+                          : R::Rectangle.new(x: start.x, y: start.y,
+                                             width: 0.0_f32, height: 0.0_f32)
+            text_id = UUID.random
+            # Create a temporary element solely to compute fit_content bounds.
+            tmp = TextElement.new(raw, "", text_id)
+            tmp.max_auto_width = maw
+            tmp.fit_content
+            fb    = tmp.bounds
+            event = CreateTextEvent.new(text_id,
+                      BoundsData.new(fb.x, fb.y, fb.width, fb.height), "", false, maw)
+            emit(event)
+            select_element(@elements.index { |e| e.id == text_id })
             @active_tool = ActiveTool::Selection
           end
         end
-        @draw_start = nil
+        @draw_start   = nil
         @draw_current = nil
+
+      when DragMode::Moving
+        # Commit text session first so the sync doesn't overwrite live-edited text.
+        commit_text_session_if_active
+        if (starts = @multi_drag_starts) && @selected_indices.size > 1
+          moves = @selected_indices.map do |i|
+            el = @elements[i]
+            b  = el.bounds
+            {el.id, BoundsData.new(b.x, b.y, b.width, b.height)}
+          end
+          emit(MoveMultiEvent.new(moves))
+          # Restore text session if the moved element was being edited (unlikely but safe).
+          if (si = @selected_index) && (new_el = @elements[si]?)
+            @text_session_id = (new_el.is_a?(TextElement) || new_el.is_a?(RectElement)) ? new_el.id : nil
+          end
+        elsif (idx = @selected_index)
+          el = @elements[idx]
+          b  = el.bounds
+          emit(MoveElementEvent.new(el.id, BoundsData.new(b.x, b.y, b.width, b.height)))
+          # Restore text session so the user can keep editing after dragging.
+          if (si = @selected_index) && (new_el = @elements[si]?)
+            @text_session_id = (new_el.is_a?(TextElement) || new_el.is_a?(RectElement)) ? new_el.id : nil
+          end
+        end
+
+      when DragMode::Resizing
+        # Commit text session first (resize triggers a sync that would drop live text).
+        commit_text_session_if_active
+        if (idx = @selected_index)
+          el = @elements[idx]
+          b  = el.bounds
+          emit(ResizeElementEvent.new(el.id, BoundsData.new(b.x, b.y, b.width, b.height)))
+          # Restore text session so the user can keep editing after resizing.
+          if (si = @selected_index) && (new_el = @elements[si]?)
+            @text_session_id = (new_el.is_a?(TextElement) || new_el.is_a?(RectElement)) ? new_el.id : nil
+          end
+        end
       end
-      @drag_mode = DragMode::None
+
+      @drag_mode        = DragMode::None
       @drag_start_mouse = nil
       @drag_start_bounds = nil
-      @active_handle = nil
+      @active_handle    = nil
       @multi_drag_starts = nil
     end
   end
@@ -270,17 +320,15 @@ class Canvas
   private def handle_delete
     return unless R.key_pressed?(R::KeyboardKey::Delete) || R.key_pressed_repeat?(R::KeyboardKey::Delete)
     if multi_selected?
-      ids = @selected_indices.map { |i| @elements[i].id }.to_set
-      @elements.reject! do |e|
-        ids.includes?(e.id) ||
-          (e.is_a?(ArrowElement) && (ids.includes?(e.from_id) || ids.includes?(e.to_id)))
-      end
+      # Emit one DeleteElementEvent per selected element; apply() cascades arrow removal.
+      events = @selected_indices.map { |i| DeleteElementEvent.new(@elements[i].id) }
+      events.each { |ev| apply(@model, ev); @history.push(ev) }
       @selected_indices = [] of Int32
+      @selected_ids     = [] of UUID
+      sync_elements_from_model
     elsif (idx = @selected_index)
-      deleted_id = @elements[idx].id
-      @elements.delete_at(idx)
-      @elements.reject! { |e| e.is_a?(ArrowElement) && (e.from_id == deleted_id || e.to_id == deleted_id) }
-      @selected_index = nil
+      @text_session_id = nil  # discard any text session — element is gone
+      emit(DeleteElementEvent.new(@elements[idx].id))
     end
   end
 
@@ -290,9 +338,8 @@ class Canvas
     return unless R.key_pressed?(R::KeyboardKey::Tab)
     el = @elements[idx]
     return unless el.is_a?(ArrowElement)
-    el.routing_style = el.routing_style.straight? ?
-      ArrowElement::RoutingStyle::Orthogonal :
-      ArrowElement::RoutingStyle::Straight
+    new_style = el.routing_style.straight? ? "orthogonal" : "straight"
+    emit(ArrowRoutingChangedEvent.new(el.id, new_style))
   end
 
   # Switch active tool with S / R / T / A. Guarded while an element is selected so
@@ -301,36 +348,54 @@ class Canvas
     return if @selected_index
     if R.key_pressed?(R::KeyboardKey::S)
       @selected_indices = [] of Int32
+      @selected_ids     = [] of UUID
       @active_tool = ActiveTool::Selection
     elsif R.key_pressed?(R::KeyboardKey::R)
       @selected_indices = [] of Int32
+      @selected_ids     = [] of UUID
       @active_tool = ActiveTool::Rect
     elsif R.key_pressed?(R::KeyboardKey::T)
       @selected_indices = [] of Int32
+      @selected_ids     = [] of UUID
       @active_tool = ActiveTool::Text
     elsif R.key_pressed?(R::KeyboardKey::A)
       @selected_indices = [] of Int32
+      @selected_ids     = [] of UUID
       @active_tool = ActiveTool::Arrow
     end
   end
 
   # Changes @selected_index, clearing any text selection on the element losing focus.
+  # Commits any in-flight text session and tracks the new selection by UUID.
   # Also clears multi-selection.
   private def select_element(new_idx : Int32?)
     old_idx = @selected_index
     @selected_indices = [] of Int32
+    @selected_ids = [] of UUID
     if old_idx != new_idx
+      commit_text_session_if_active
       @elements[old_idx].clear_selection if old_idx && old_idx < @elements.size
       @selected_index = new_idx
+      if new_idx && (el = @elements[new_idx]?)
+        @selected_id     = el.id
+        @text_session_id = (el.is_a?(TextElement) || el.is_a?(RectElement)) ? el.id : nil
+      else
+        @selected_id     = nil
+        @text_session_id = nil
+      end
     end
   end
 
-  # Activates multi-selection, clearing any single-selected element.
+  # Activates multi-selection, committing any text session and clearing single selection.
   private def select_multi(indices : Array(Int32))
     old_idx = @selected_index
+    commit_text_session_if_active
     @elements[old_idx].clear_selection if old_idx && old_idx < @elements.size
-    @selected_index = nil
+    @selected_index  = nil
+    @selected_id     = nil
+    @text_session_id = nil
     @selected_indices = indices
+    @selected_ids     = indices.compact_map { |i| @elements[i]?.try(&.id) }
   end
 
   # Returns true when more than one element is selected.
@@ -362,9 +427,11 @@ class Canvas
     return nil unless idx
     el = @elements[idx]
     return nil unless el.is_a?(TextElement) && el.text.empty?
-    @elements.delete_at(idx)
-    @selected_index = nil
-    idx
+    removed_at = idx
+    @text_session_id = nil  # discard empty session without committing
+    emit(DeleteElementEvent.new(el.id))
+    # After emit+sync: @selected_index and @selected_id are nil (element not found).
+    removed_at
   end
 
   # Returns the index of the topmost element under *mouse_world*, or nil.

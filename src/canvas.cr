@@ -5,6 +5,7 @@ require "./events"
 require "./apply"
 require "./history"
 require "./layout"
+require "./view_state"
 require "./element"
 require "./persistence"
 
@@ -65,6 +66,19 @@ class Canvas
   # Multi-selection: indices of all selected elements (non-empty only when > 1 selected).
   @selected_indices : Array(Int32) = [] of Int32
 
+  # ── Event-sourcing state ──────────────────────────────────────────────────
+  # @model is the authoritative canvas state; @elements is a derived cache.
+  @model   : CanvasModel
+  @history : HistoryManager
+
+  # UUID-based selection tracking — survives sync_elements_from_model rebuilds.
+  @selected_id  : UUID? = nil
+  @selected_ids : Array(UUID) = [] of UUID
+
+  # UUID of the element whose text is currently live-edited.
+  # TextChangedEvent is emitted on session commit (deselect / move / resize).
+  @text_session_id : UUID? = nil
+
   # Drawing state
   @draw_start : R::Vector2?
   @draw_current : R::Vector2?
@@ -81,6 +95,8 @@ class Canvas
   @arrow_source_index : Int32? = nil
 
   def initialize(screen_width : Int32, screen_height : Int32)
+    @model   = CanvasModel.new
+    @history = HistoryManager.new(@model)
     @elements = [] of Element
     @camera = R::Camera2D.new(
       offset: R::Vector2.new(x: screen_width / 2.0_f32, y: screen_height / 2.0_f32),
@@ -129,6 +145,10 @@ class Canvas
     # finishes, so arrows constructed inside the block hold a reference to the
     # old array. Patch them here to point at the live one.
     @elements.each { |e| e.elements = @elements if e.is_a?(ArrowElement) }
+
+    # Populate model from the loaded elements so history has the correct baseline.
+    @model = elements_to_model(@elements)
+    @history.reset(@model)
   rescue ex
     STDERR.puts "Warning: could not load canvas — #{ex.message}"
   end
@@ -168,6 +188,125 @@ class Canvas
     draw_selection
     draw_draft
     R.end_mode_2d
+  end
+
+  # ── Event-sourcing helpers ─────────────────────────────────────────────────
+
+  # Apply an event to the model, record it in history, and rebuild @elements.
+  # Do NOT call this during an active text session — use commit_text_session_if_active
+  # first so the live text is persisted before the sync overwrites the element.
+  private def emit(event : CanvasEvent) : Nil
+    apply(@model, event)
+    @history.push(event)
+    sync_elements_from_model
+  end
+
+  # Rebuild @elements from @model, preserving selection and arrow back-references.
+  # Called after every emit. UUID-based tracking keeps selection stable across rebuilds.
+  private def sync_elements_from_model : Nil
+    @elements = @model.elements.compact_map do |m|
+      case m
+      when RectModel
+        b = m.bounds
+        RectElement.new(
+          R::Rectangle.new(x: b.x, y: b.y, width: b.w, height: b.h),
+          m.fill.to_raylib, m.stroke.to_raylib, m.stroke_width, m.label, m.id
+        ).as(Element)
+      when TextModel
+        b = m.bounds
+        el = TextElement.new(
+          R::Rectangle.new(x: b.x, y: b.y, width: b.w, height: b.h),
+          m.text, m.id, m.fixed_width
+        )
+        el.max_auto_width = m.max_auto_width
+        el.as(Element)
+      when ArrowModel
+        style = m.routing_style == "straight" ?
+          ArrowElement::RoutingStyle::Straight :
+          ArrowElement::RoutingStyle::Orthogonal
+        ArrowElement.new(m.from_id, m.to_id, @elements, style, m.id).as(Element)
+      end
+    end
+    # Patch all arrow elements to reference the final @elements array.
+    @elements.each { |e| e.elements = @elements if e.is_a?(ArrowElement) }
+
+    # Update @selected_index from @selected_id (UUID-stable across rebuilds).
+    if (id = @selected_id)
+      found = @elements.index { |e| e.id == id }
+      @selected_index = found
+      if found.nil?
+        # Element was deleted — clear all selection state.
+        @selected_id     = nil
+        @text_session_id = nil
+      end
+    else
+      @selected_index = nil
+    end
+
+    # Update @selected_indices from @selected_ids, dropping any deleted elements.
+    unless @selected_ids.empty?
+      pairs = @selected_ids.compact_map do |id|
+        idx = @elements.index { |e| e.id == id }
+        idx ? {id, idx} : nil
+      end
+      @selected_ids     = pairs.map { |(id, _)| id }
+      @selected_indices = pairs.map { |(_, idx)| idx }
+    end
+  end
+
+  # Flush any live text edits to the model as a TextChangedEvent.
+  # Called before structural events that would trigger a sync (which would
+  # overwrite the element with the stale model text).
+  # Does NOT call sync — the caller's emit will do that.
+  # No-op when text is identical to the model (avoids spurious history entries).
+  private def commit_text_session_if_active : Nil
+    return unless (tid = @text_session_id)
+    @text_session_id = nil  # clear first so re-entrant calls are safe
+    return unless (idx = @selected_index) && idx < @elements.size
+    el = @elements[idx]
+    new_text = case el
+               when TextElement then el.text
+               when RectElement then el.label
+               else return
+               end
+    # Skip if text matches the model's current state.
+    model_text = case (m = @model.find_by_id(tid))
+                 when TextModel then m.text
+                 when RectModel then m.label
+                 else ""
+                 end
+    return if new_text == model_text
+    b     = el.bounds
+    event = TextChangedEvent.new(tid, new_text, BoundsData.new(b.x, b.y, b.width, b.height))
+    apply(@model, event)
+    @history.push(event)
+  end
+
+  # Build a CanvasModel from the current @elements array.
+  # Used after load to seed the model from the legacy persistence format.
+  private def elements_to_model(elements : Array(Element)) : CanvasModel
+    model = CanvasModel.new
+    elements.each do |e|
+      case e
+      when RectElement
+        b = e.bounds
+        model.elements << RectModel.new(
+          e.id, BoundsData.new(b.x, b.y, b.width, b.height),
+          ColorData.new(e.fill), ColorData.new(e.stroke), e.stroke_width, e.label
+        )
+      when TextElement
+        b = e.bounds
+        model.elements << TextModel.new(
+          e.id, BoundsData.new(b.x, b.y, b.width, b.height),
+          e.text, e.fixed_width, e.max_auto_width
+        )
+      when ArrowElement
+        model.elements << ArrowModel.new(
+          e.id, e.from_id, e.to_id, e.routing_style.to_s.downcase
+        )
+      end
+    end
+    model
   end
 end
 
