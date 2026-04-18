@@ -148,6 +148,16 @@ module TextEditing
     editing_text.chars[range[0]...range[1]].join
   end
 
+  def handle_cut : String?
+    return nil unless (range = selection_range)
+    text = editing_text.chars[range[0]...range[1]].join
+    delete_selection
+    @preferred_x = nil
+    reset_blink
+    fit_content
+    text
+  end
+
   def handle_paste(text : String)
     return if text.empty?
     delete_selection

@@ -54,6 +54,9 @@ abstract class Element
   # Returns the selected text as a String, or nil if there is no selection.
   def handle_copy : String?; nil; end
 
+  # Cuts the selected text: returns it and deletes it, or nil if there is no selection.
+  def handle_cut : String?; nil; end
+
   # Inserts text at the cursor, replacing any active selection.
   def handle_paste(text : String); end
 

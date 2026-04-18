@@ -233,10 +233,15 @@ class Canvas
       ctrl ? el.handle_backspace_word : el.handle_backspace
     end
 
-    # Clipboard: Ctrl+C copies selection, Ctrl+V pastes (replacing selection).
+    # Clipboard: Ctrl+C copies selection, Ctrl+X cuts selection, Ctrl+V pastes (replacing selection).
     if ctrl && R.key_pressed?(R::KeyboardKey::C)
       if (copied = el.handle_copy)
         R.set_clipboard_text(copied)
+      end
+    end
+    if ctrl && R.key_pressed?(R::KeyboardKey::X)
+      if (cut = el.handle_cut)
+        R.set_clipboard_text(cut)
       end
     end
     if ctrl && (R.key_pressed?(R::KeyboardKey::V) || R.key_pressed_repeat?(R::KeyboardKey::V))
