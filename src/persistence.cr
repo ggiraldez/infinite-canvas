@@ -1,15 +1,14 @@
 require "json"
 require "uuid"
 require "./element"
+require "./model"
 
-# JSON-serializable mirror of R::Color.
+# Raylib conversions and JSON serialization for model value types.
+# ColorData and BoundsData are defined in model.cr (no Raylib dep).
+# Raylib-dependent methods and JSON::Serializable are added here via reopen.
+
 struct ColorData
   include JSON::Serializable
-
-  property r : UInt8
-  property g : UInt8
-  property b : UInt8
-  property a : UInt8
 
   def initialize(c : R::Color)
     @r, @g, @b, @a = c.r, c.g, c.b, c.a

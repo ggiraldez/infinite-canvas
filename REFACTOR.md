@@ -13,7 +13,7 @@ Full conversion of the canvas from direct-mutation + Raylib-coupled elements to:
 ## Current Status
 
 - [x] Phase 0 — Write plan to `/workspace/REFACTOR.md`
-- [ ] Phase 1 — Pure model types (`src/model.cr`)
+- [x] Phase 1 — Pure model types (`src/model.cr`)
 - [ ] Phase 2 — Events + apply function (`src/events.cr`, `src/apply.cr`)
 - [ ] Phase 3 — History manager (`src/history.cr`)
 - [ ] Phase 4 — Extract layout engine (`src/layout.cr`)
