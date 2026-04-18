@@ -3,6 +3,7 @@ require "raylib-cr"
 require "./model"
 require "./events"
 require "./apply"
+require "./history"
 require "./element"
 require "./persistence"
 
