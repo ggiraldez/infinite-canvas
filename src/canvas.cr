@@ -1,6 +1,8 @@
 require "json"
 require "raylib-cr"
 require "./model"
+require "./events"
+require "./apply"
 require "./element"
 require "./persistence"
 
