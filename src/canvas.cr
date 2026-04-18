@@ -4,6 +4,7 @@ require "./model"
 require "./events"
 require "./apply"
 require "./history"
+require "./layout"
 require "./element"
 require "./persistence"
 

@@ -1,3 +1,5 @@
+require "./layout"
+
 # ─── Arrow ────────────────────────────────────────────────────────────────────
 
 # A directional arrow connecting two other elements by their UUIDs.
@@ -74,17 +76,13 @@ class ArrowElement < Element
     @elements.find { |e| e.id == @to_id }
   end
 
+  # Side is owned by ArrowLayout; alias for brevity in the methods below.
+  private alias Side = ArrowLayout::Side
+
   # ── Routing ──────────────────────────────────────────────────────────────────
 
   private def route(src : R::Rectangle, tgt : R::Rectangle) : Array(R::Vector2)
-    @routing_style.straight? ? straight_route(src, tgt) : ortho_route(src, tgt)
-  end
-
-  # Straight: two border points on the centre-to-centre line.
-  private def straight_route(src : R::Rectangle, tgt : R::Rectangle) : Array(R::Vector2)
-    src_c = R::Vector2.new(x: src.x + src.width / 2.0_f32, y: src.y + src.height / 2.0_f32)
-    tgt_c = R::Vector2.new(x: tgt.x + tgt.width / 2.0_f32, y: tgt.y + tgt.height / 2.0_f32)
-    [border_exit_point(src, src_c, tgt_c), border_exit_point(tgt, tgt_c, src_c)]
+    @routing_style.straight? ? ArrowLayout.straight_route(src, tgt) : ortho_route(src, tgt)
   end
 
   # ── Orthogonal routing ───────────────────────────────────────────────────────
@@ -108,7 +106,7 @@ class ArrowElement < Element
     dx = tx - sx
     dy = ty - sy
 
-    from_side, to_side = natural_sides(src, tgt, dx, dy)
+    from_side, to_side = ArrowLayout.natural_sides(src, tgt, dx, dy)
     frac_src = side_fraction(@from_id, true,  from_side, src)
     frac_tgt = side_fraction(@to_id,   false, to_side,   tgt)
 
@@ -145,8 +143,8 @@ class ArrowElement < Element
     end
 
     # ── 3-segment fallback ────────────────────────────────────────────────────
-    a = exit_point_on_side(from_side, src, frac_src)
-    b = exit_point_on_side(to_side,   tgt, frac_tgt)
+    a = ArrowLayout.exit_point_on_side(from_side, src, frac_src)
+    b = ArrowLayout.exit_point_on_side(to_side,   tgt, frac_tgt)
 
     case {from_side, to_side}
     when {Side::Right, Side::Left}, {Side::Left, Side::Right}
@@ -170,49 +168,6 @@ class ArrowElement < Element
     else
       [a, R::Vector2.new(x: b.x, y: a.y), b]
     end
-  end
-
-  # Predicts which border sides the arrow will use for *src* (exit) and *tgt*
-  # (entry), applying the same Option A / Option B / fallback decision tree as
-  # ortho_route — but without computing the full path.  Used by side_fraction
-  # to group sibling arrows that share a side.
-  private def natural_sides(src : R::Rectangle, tgt : R::Rectangle,
-                             dx : Float32, dy : Float32) : {Side, Side}
-    sx = src.x + src.width  / 2.0_f32
-    sy = src.y + src.height / 2.0_f32
-    tx = tgt.x + tgt.width  / 2.0_f32
-    ty = tgt.y + tgt.height / 2.0_f32
-
-    if dx.abs > 0.5_f32 && dy.abs > 0.5_f32
-      # Option A: horizontal exit from src, vertical entry to tgt
-      ex_a  = dx > 0 ? src.x + src.width : src.x
-      ey_a  = dy > 0 ? tgt.y : tgt.y + tgt.height
-      seg1a = dx > 0 ? tx > ex_a : tx < ex_a
-      seg2a = dy > 0 ? ey_a > sy : ey_a < sy
-      if seg1a && seg2a
-        from_s = dx > 0 ? Side::Right : Side::Left
-        to_s   = dy > 0 ? Side::Top   : Side::Bottom
-        return {from_s, to_s}
-      end
-
-      # Option B: vertical exit from src, horizontal entry to tgt
-      ey_b  = dy > 0 ? src.y + src.height : src.y
-      ex_b  = dx > 0 ? tgt.x : tgt.x + tgt.width
-      seg1b = dy > 0 ? ty > ey_b : ty < ey_b
-      seg2b = dx > 0 ? ex_b > sx : ex_b < sx
-      if seg1b && seg2b
-        from_s = dy > 0 ? Side::Bottom : Side::Top
-        to_s   = dx > 0 ? Side::Left   : Side::Right
-        return {from_s, to_s}
-      end
-    end
-
-    # Fallback: derive sides from centre-to-centre border exit points
-    src_c = R::Vector2.new(x: sx, y: sy)
-    tgt_c = R::Vector2.new(x: tx, y: ty)
-    a = border_exit_point(src, src_c, tgt_c)
-    b = border_exit_point(tgt, tgt_c, src_c)
-    {point_side(a, src), point_side(b, tgt)}
   end
 
   # Returns a fraction in [0, 1] representing where along *side* of element
@@ -252,7 +207,7 @@ class ArrowElement < Element
       sib_dx  = (sib_tgt.x + sib_tgt.width  / 2.0_f32) - (sib_src.x + sib_src.width  / 2.0_f32)
       sib_dy  = (sib_tgt.y + sib_tgt.height / 2.0_f32) - (sib_src.y + sib_src.height / 2.0_f32)
 
-      sib_from_side, sib_to_side = natural_sides(sib_src, sib_tgt, sib_dx, sib_dy)
+      sib_from_side, sib_to_side = ArrowLayout.natural_sides(sib_src, sib_tgt, sib_dx, sib_dy)
       sib_side = as_from ? sib_from_side : sib_to_side
       next unless sib_side == side
 
@@ -272,63 +227,6 @@ class ArrowElement < Element
     sorted  = siblings.sort_by { |(a, key)| {key, a.id.to_s} }
     my_rank = sorted.index { |(a, _)| a.id == self.id } || 0
     (my_rank + 1).to_f32 / (sorted.size + 1).to_f32
-  end
-
-  # Returns the world-space point on *side* of rectangle *b* at position
-  # *frac* (0 = start of side, 1 = end of side, 0.5 = centre).
-  private def exit_point_on_side(side : Side, b : R::Rectangle, frac : Float32) : R::Vector2
-    case side
-    when Side::Left   then R::Vector2.new(x: b.x,           y: b.y + frac * b.height)
-    when Side::Right  then R::Vector2.new(x: b.x + b.width, y: b.y + frac * b.height)
-    when Side::Top    then R::Vector2.new(x: b.x + frac * b.width, y: b.y)
-    when Side::Bottom then R::Vector2.new(x: b.x + frac * b.width, y: b.y + b.height)
-    else                   R::Vector2.new(x: b.x + b.width / 2.0_f32, y: b.y + b.height / 2.0_f32)
-    end
-  end
-
-  # Which border of *b* is *pt* closest to?
-  private enum Side; Left; Right; Top; Bottom; end
-
-  private def point_side(pt : R::Vector2, b : R::Rectangle) : Side
-    dl = (pt.x - b.x).abs
-    dr = (pt.x - (b.x + b.width)).abs
-    dt = (pt.y - b.y).abs
-    db = (pt.y - (b.y + b.height)).abs
-    case [dl, dr, dt, db].min
-    when dl then Side::Left
-    when dr then Side::Right
-    when dt then Side::Top
-    else         Side::Bottom
-    end
-  end
-
-  # Returns the point where the ray from *origin* toward *toward* exits *b*.
-  private def border_exit_point(b : R::Rectangle, origin : R::Vector2, toward : R::Vector2) : R::Vector2
-    dx = toward.x - origin.x
-    dy = toward.y - origin.y
-    return origin if dx.abs < 0.001_f32 && dy.abs < 0.001_f32
-    t_min = Float32::MAX
-    if dx > 0.001_f32
-      t = (b.x + b.width - origin.x) / dx
-      y = origin.y + t * dy
-      t_min = t if t >= 0 && y >= b.y && y <= b.y + b.height && t < t_min
-    end
-    if dx < -0.001_f32
-      t = (b.x - origin.x) / dx
-      y = origin.y + t * dy
-      t_min = t if t >= 0 && y >= b.y && y <= b.y + b.height && t < t_min
-    end
-    if dy > 0.001_f32
-      t = (b.y + b.height - origin.y) / dy
-      x = origin.x + t * dx
-      t_min = t if t >= 0 && x >= b.x && x <= b.x + b.width && t < t_min
-    end
-    if dy < -0.001_f32
-      t = (b.y - origin.y) / dy
-      x = origin.x + t * dx
-      t_min = t if t >= 0 && x >= b.x && x <= b.x + b.width && t < t_min
-    end
-    t_min < Float32::MAX ? R::Vector2.new(x: origin.x + t_min * dx, y: origin.y + t_min * dy) : origin
   end
 
   # ── Drawing helpers ──────────────────────────────────────────────────────────
