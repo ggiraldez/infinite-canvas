@@ -1,4 +1,4 @@
-require "./layout"
+require "./text_layout"
 
 # ─── Text node ────────────────────────────────────────────────────────────────
 
@@ -131,7 +131,7 @@ class TextElement < Element
   # Delegates to TextLayout.compute — algorithm and documentation live there.
   # Non-private so Renderer can call it for drawing and cursor positioning.
   def visual_line_runs : TextLayoutData
-    TextLayout.compute(@text, (bounds.width - PADDING * 2).to_f32, FONT_SIZE)
+    TextLayout.compute(@text, (bounds.width - PADDING * 2).to_f32, FONT_SIZE) { |s| R.measure_text(s, FONT_SIZE) }
   end
 
   # Maps @cursor_pos (character offset in full text) to
