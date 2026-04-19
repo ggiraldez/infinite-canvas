@@ -189,7 +189,11 @@ describe LayoutEngine do
       rd[arrow_id].should be_a(ArrowRenderData)
     end
 
-    it "produces centre-to-centre waypoints for a stub arrow" do
+    it "produces orthogonal waypoints for a right-then-down path (L-shape)" do
+      # from=(0,0,100,50) centre=(50,25); to=(200,100,100,50) centre=(250,125)
+      # dx=200>0, dy=100>0 → Option A: exit Right, enter Top
+      # single arrow → frac_src=frac_tgt=0.5 → exit_y=25, entry_x=250
+      # Option A valid → [{100,25},{250,25},{250,100}]
       from_id  = UUID.random
       to_id    = UUID.random
       arrow_id = UUID.random
@@ -202,9 +206,25 @@ describe LayoutEngine do
 
       a = make_engine.layout(model)[arrow_id].as(ArrowRenderData)
 
-      a.waypoints.size.should eq 2
-      a.waypoints[0].should eq({50_f32, 25_f32})    # centre of from element
-      a.waypoints[1].should eq({250_f32, 125_f32})  # centre of to element
+      a.waypoints.should eq [{100_f32, 25_f32}, {250_f32, 25_f32}, {250_f32, 100_f32}]
+    end
+
+    it "produces straight waypoints for a straight-routed arrow" do
+      # from=(0,0,100,50) centre=(50,25); to=(200,0,100,50) centre=(250,25)
+      # straight_route: border exit right of from = (100,25), left of to = (200,25)
+      from_id  = UUID.random
+      to_id    = UUID.random
+      arrow_id = UUID.random
+      model    = CanvasModel.new
+      model.elements << RectModel.new(from_id, BoundsData.new(0_f32, 0_f32, 100_f32, 50_f32),
+        ColorData.new(255_u8, 0_u8, 0_u8, 255_u8), ColorData.new(0_u8, 0_u8, 0_u8, 255_u8), 2_f32, "")
+      model.elements << RectModel.new(to_id, BoundsData.new(200_f32, 0_f32, 100_f32, 50_f32),
+        ColorData.new(255_u8, 0_u8, 0_u8, 255_u8), ColorData.new(0_u8, 0_u8, 0_u8, 255_u8), 2_f32, "")
+      model.elements << ArrowModel.new(arrow_id, from_id, to_id, "straight")
+
+      a = make_engine.layout(model)[arrow_id].as(ArrowRenderData)
+
+      a.waypoints.should eq [{100_f32, 25_f32}, {200_f32, 25_f32}]
     end
 
     it "returns empty waypoints when an arrow endpoint is missing" do
@@ -215,6 +235,61 @@ describe LayoutEngine do
       a = make_engine.layout(model)[arrow_id].as(ArrowRenderData)
 
       a.waypoints.should be_empty
+    end
+
+    # ── Side-fraction spread ───────────────────────────────────────────────────
+
+    it "spreads two arrows that exit the same side of a shared source" do
+      # A at (0,0,100,50); B at (200,0,100,50) centre_y=25; C at (200,200,100,50) centre_y=225
+      # Both arrows exit the Right side of A (purely horizontal or diagonal right).
+      # Arrow→B has other-endpoint centre_y=25 < Arrow→C centre_y=225
+      # → Arrow→B gets rank 0: frac=1/3; Arrow→C gets rank 1: frac=2/3
+      # Right-side exit: exit_y = A.y + frac * A.h = frac * 50
+      # Arrow→B exit_y < Arrow→C exit_y  (spread ordering is correct)
+      a_id      = UUID.random
+      b_id      = UUID.random
+      c_id      = UUID.random
+      arrow1_id = UUID.random
+      arrow2_id = UUID.random
+      model     = CanvasModel.new
+      model.elements << RectModel.new(a_id, BoundsData.new(0_f32, 0_f32, 100_f32, 50_f32),
+        ColorData.new(255_u8, 0_u8, 0_u8, 255_u8), ColorData.new(0_u8, 0_u8, 0_u8, 255_u8), 2_f32, "")
+      model.elements << RectModel.new(b_id, BoundsData.new(200_f32, 0_f32, 100_f32, 50_f32),
+        ColorData.new(255_u8, 0_u8, 0_u8, 255_u8), ColorData.new(0_u8, 0_u8, 0_u8, 255_u8), 2_f32, "")
+      model.elements << RectModel.new(c_id, BoundsData.new(200_f32, 200_f32, 100_f32, 50_f32),
+        ColorData.new(255_u8, 0_u8, 0_u8, 255_u8), ColorData.new(0_u8, 0_u8, 0_u8, 255_u8), 2_f32, "")
+      model.elements << ArrowModel.new(arrow1_id, a_id, b_id)
+      model.elements << ArrowModel.new(arrow2_id, a_id, c_id)
+
+      rd = make_engine.layout(model)
+      a1 = rd[arrow1_id].as(ArrowRenderData)
+      a2 = rd[arrow2_id].as(ArrowRenderData)
+
+      # Both arrows must have waypoints (routing succeeded).
+      a1.waypoints.should_not be_empty
+      a2.waypoints.should_not be_empty
+
+      # Arrow1→B exits higher (smaller y) than Arrow2→C because B is above C.
+      a1.waypoints[0][1].should be < a2.waypoints[0][1]
+    end
+
+    it "gives a single arrow on a side the centre fraction (0.5)" do
+      from_id  = UUID.random
+      to_id    = UUID.random
+      arrow_id = UUID.random
+      model    = CanvasModel.new
+      # Pure horizontal: exits Right side at centre (y=25 = 50*0.5)
+      model.elements << RectModel.new(from_id, BoundsData.new(0_f32, 0_f32, 100_f32, 50_f32),
+        ColorData.new(255_u8, 0_u8, 0_u8, 255_u8), ColorData.new(0_u8, 0_u8, 0_u8, 255_u8), 2_f32, "")
+      model.elements << RectModel.new(to_id, BoundsData.new(200_f32, 0_f32, 100_f32, 50_f32),
+        ColorData.new(255_u8, 0_u8, 0_u8, 255_u8), ColorData.new(0_u8, 0_u8, 0_u8, 255_u8), 2_f32, "")
+      model.elements << ArrowModel.new(arrow_id, from_id, to_id)
+
+      a = make_engine.layout(model)[arrow_id].as(ArrowRenderData)
+
+      # Horizontal arrow: 3-segment right-to-left path; first waypoint is exit of from.
+      # frac=0.5 → exit_y = 0 + 0.5*50 = 25 → first waypoint y = 25.
+      a.waypoints[0][1].should eq 25_f32
     end
   end
 end

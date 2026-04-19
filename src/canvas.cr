@@ -230,11 +230,9 @@ class Canvas
         style = m.routing_style == "straight" ?
           ArrowElement::RoutingStyle::Straight :
           ArrowElement::RoutingStyle::Orthogonal
-        ArrowElement.new(m.from_id, m.to_id, @elements, style, m.id).as(Element)
+        ArrowElement.new(m.from_id, m.to_id, style, m.id).as(Element)
       end
     end
-    # Patch all arrow elements to reference the final @elements array.
-    @elements.each { |e| e.elements = @elements if e.is_a?(ArrowElement) }
 
     # Update @selected_index from @selected_id (UUID-stable across rebuilds).
     if (id = @selected_id)
@@ -260,6 +258,16 @@ class Canvas
     end
 
     @render_data = @layout_engine.layout(@model)
+    inject_arrow_waypoints
+  end
+
+  private def inject_arrow_waypoints : Nil
+    @elements.each do |e|
+      next unless e.is_a?(ArrowElement)
+      rd = @render_data[e.id]?
+      next unless rd.is_a?(ArrowRenderData)
+      e.cached_waypoints = rd.waypoints.map { |p| R::Vector2.new(x: p[0], y: p[1]) }
+    end
   end
 
   # Flush any live text edits to the model as a TextChangedEvent.
@@ -304,11 +312,10 @@ class Canvas
       when "arrow" then ArrowElementData.from_json(data).to_element(@elements).as(Element)
       end
     end
-    # compact_map assigns a new array to @elements after the block, so patch
-    # arrow back-references to point at the live array.
-    @elements.each { |e| e.elements = @elements if e.is_a?(ArrowElement) }
     @model = elements_to_model(@elements)
     @history.reset(@model)
+    @render_data = @layout_engine.layout(@model)
+    inject_arrow_waypoints
   end
 
   # Build a CanvasModel from the current @elements array.

@@ -97,12 +97,11 @@ class ArrowElementData < ElementData
   end
 
   def to_element(elements : Array(Element)) : Element
-    style = @routing_style == "straight" ? ArrowElement::RoutingStyle::Straight : ArrowElement::RoutingStyle::Orthogonal
-    ArrowElement.new(UUID.new(@from_id), UUID.new(@to_id), elements, style, UUID.new(@id))
+    to_element
   end
 
-  # Satisfy the abstract contract — callers that need the elements list use to_element(elements).
   def to_element : Element
-    raise "ArrowElementData requires the elements array; call to_element(elements) instead"
+    style = @routing_style == "straight" ? ArrowElement::RoutingStyle::Straight : ArrowElement::RoutingStyle::Orthogonal
+    ArrowElement.new(UUID.new(@from_id), UUID.new(@to_id), style, UUID.new(@id))
   end
 end

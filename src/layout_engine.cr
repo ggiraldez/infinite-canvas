@@ -1,6 +1,7 @@
 require "./model"
 require "./render_data"
 require "./text_layout"
+require "./arrow_geometry"
 
 # Computes render-ready layout data from the canvas model using an injected
 # measurer, so the layout pass has no Raylib dependency and can be unit-tested.
@@ -79,8 +80,6 @@ class LayoutEngine
     RectRenderData.new(m.bounds, label_lines)
   end
 
-  # Phase 1 stub: centre-to-centre waypoints derived from BoundsData only.
-  # Full orthogonal routing moves here in Phase 2.
   private def layout_arrow(model : CanvasModel, m : ArrowModel) : ArrowRenderData
     from_m = model.find_by_id(m.from_id)
     to_m   = model.find_by_id(m.to_id)
@@ -89,19 +88,83 @@ class LayoutEngine
       return ArrowRenderData.new([] of {Float32, Float32}, m.bounds)
     end
 
-    fx = from_m.bounds.x + from_m.bounds.w / 2.0_f32
-    fy = from_m.bounds.y + from_m.bounds.h / 2.0_f32
-    tx = to_m.bounds.x   + to_m.bounds.w   / 2.0_f32
-    ty = to_m.bounds.y   + to_m.bounds.h   / 2.0_f32
+    src = from_m.bounds
+    tgt = to_m.bounds
 
-    min_x  = fx < tx ? fx : tx
-    min_y  = fy < ty ? fy : ty
-    raw_bw = (tx - fx).abs
-    raw_bh = (ty - fy).abs
-    bw     = (raw_bw > 1.0_f32 ? raw_bw : 1.0_f32).to_f32
-    bh     = (raw_bh > 1.0_f32 ? raw_bh : 1.0_f32).to_f32
-    bounds = BoundsData.new(min_x, min_y, bw, bh)
-    ArrowRenderData.new([{fx, fy}, {tx, ty}], bounds)
+    waypoints = if m.routing_style == "straight"
+      ArrowGeometry.straight_route(src, tgt)
+    else
+      sx = src.x + src.w / 2.0_f32
+      sy = src.y + src.h / 2.0_f32
+      tx = tgt.x + tgt.w / 2.0_f32
+      ty = tgt.y + tgt.h / 2.0_f32
+      dx = tx - sx
+      dy = ty - sy
+
+      from_side, to_side = ArrowGeometry.natural_sides(src, tgt, dx, dy)
+      frac_src = arrow_side_fraction(model, m, m.from_id, true,  from_side, src)
+      frac_tgt = arrow_side_fraction(model, m, m.to_id,   false, to_side,   tgt)
+      ArrowGeometry.ortho_route(src, tgt, frac_src, frac_tgt, from_side, to_side)
+    end
+
+    return ArrowRenderData.new(waypoints, m.bounds) if waypoints.empty?
+
+    min_x = waypoints.min_of { |p| p[0] }
+    min_y = waypoints.min_of { |p| p[1] }
+    max_x = waypoints.max_of { |p| p[0] }
+    max_y = waypoints.max_of { |p| p[1] }
+    bw    = max_x - min_x
+    bh    = max_y - min_y
+    bounds = BoundsData.new(min_x, min_y,
+               bw > 0 ? bw : 1.0_f32,
+               bh > 0 ? bh : 1.0_f32)
+    ArrowRenderData.new(waypoints, bounds)
+  end
+
+  # Returns the fraction [0,1] along *side* of element *el_id* where *arrow*
+  # should exit/enter, spread evenly among sibling arrows on the same side.
+  # Siblings are sorted by the centre of their *other* endpoint along the
+  # perpendicular axis so that exit-point order tracks connection order.
+  private def arrow_side_fraction(model : CanvasModel, arrow : ArrowModel,
+                                    el_id : UUID, as_from : Bool,
+                                    side : ArrowGeometry::Side,
+                                    el_bounds : BoundsData) : Float32
+    siblings = [] of {UUID, Float32}
+
+    model.elements.each do |e|
+      next unless e.is_a?(ArrowModel)
+      a = e.as(ArrowModel)
+      next unless (as_from ? a.from_id : a.to_id) == el_id
+
+      sib_from_m = model.find_by_id(a.from_id)
+      sib_to_m   = model.find_by_id(a.to_id)
+      next unless sib_from_m && sib_to_m
+
+      sib_src = sib_from_m.bounds
+      sib_tgt = sib_to_m.bounds
+      sib_dx  = (sib_tgt.x + sib_tgt.w / 2.0_f32) - (sib_src.x + sib_src.w / 2.0_f32)
+      sib_dy  = (sib_tgt.y + sib_tgt.h / 2.0_f32) - (sib_src.y + sib_src.h / 2.0_f32)
+
+      sib_from_side, sib_to_side = ArrowGeometry.natural_sides(sib_src, sib_tgt, sib_dx, sib_dy)
+      sib_side = as_from ? sib_from_side : sib_to_side
+      next unless sib_side == side
+
+      other_b  = as_from ? sib_tgt : sib_src
+      sort_key = case side
+                 when ArrowGeometry::Side::Left, ArrowGeometry::Side::Right
+                   other_b.y + other_b.h / 2.0_f32
+                 when ArrowGeometry::Side::Top, ArrowGeometry::Side::Bottom
+                   other_b.x + other_b.w / 2.0_f32
+                 else
+                   other_b.y + other_b.h / 2.0_f32
+                 end
+
+      siblings << {a.id, sort_key}
+    end
+
+    sorted  = siblings.sort_by { |(id, key)| {key, id.to_s} }
+    my_rank = sorted.index { |(id, _)| id == arrow.id } || 0
+    (my_rank + 1).to_f32 / (sorted.size + 1).to_f32
   end
 
   private def measure_line_runs(text : String, avail_w : Float32, font_size : Int32) : TextLayoutData
