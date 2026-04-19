@@ -419,6 +419,7 @@ class Canvas
   private def emit_text_event(event : CanvasEvent) : Nil
     apply(@model, event)
     @history.push(event)
+    @render_data = @layout_engine.layout(@model)
   end
 
   # Emit the coalescing buffer as a single InsertTextEvent and clear it.

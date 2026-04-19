@@ -9,6 +9,7 @@ require "./view_state"
 require "./element"
 require "./persistence"
 require "./renderer"
+require "./layout_engine"
 
 # Infinite canvas: owns the Camera2D, the element list, and input handling.
 class Canvas
@@ -61,7 +62,9 @@ class Canvas
     (idx = @selected_index) ? @elements[idx]? : nil
   end
 
-  @renderer : Renderer = Renderer.new
+  @renderer      : Renderer = Renderer.new
+  @layout_engine : LayoutEngine
+  @render_data   : RenderData
   @drag_mode : DragMode = DragMode::None
   @selected_index : Int32? = nil
 
@@ -106,9 +109,11 @@ class Canvas
   @arrow_source_index : Int32? = nil
 
   def initialize(screen_width : Int32, screen_height : Int32)
-    @model   = CanvasModel.new
-    @history = HistoryManager.new(@model)
-    @elements = [] of Element
+    @model         = CanvasModel.new
+    @history       = HistoryManager.new(@model)
+    @elements      = [] of Element
+    @layout_engine = LayoutEngine.new(Proc(String, Int32, Int32).new { |t, fs| R.measure_text(t, fs) })
+    @render_data   = RenderData.new
     @camera = R::Camera2D.new(
       offset: R::Vector2.new(x: screen_width / 2.0_f32, y: screen_height / 2.0_f32),
       target: R::Vector2.new(x: 0.0_f32, y: 0.0_f32),
@@ -253,6 +258,8 @@ class Canvas
       @selected_ids     = pairs.map { |(id, _)| id }
       @selected_indices = pairs.map { |(_, idx)| idx }
     end
+
+    @render_data = @layout_engine.layout(@model)
   end
 
   # Flush any live text edits to the model as a TextChangedEvent.
