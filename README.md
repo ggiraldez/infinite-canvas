@@ -113,8 +113,12 @@ Select any rectangle or text node to start editing its content immediately.
 | Paste (replaces selection) | `Ctrl+V` |
 | Delete element | `Delete` (also removes connected arrows) |
 | Toggle arrow routing | `Tab` (while an arrow is selected) |
+| Undo | `Ctrl+Z` |
+| Redo | `Ctrl+Y` or `Ctrl+Shift+Z` |
 
 The cursor blinks after a short steady-on period following each keystroke, matching standard editor behaviour. Vertical navigation preserves the visual horizontal position across lines (sticky column), accounting for the proportional font.
+
+**Per-word undo** is active while editing: consecutive characters coalesce into word groups (flushed at whitespace→letter transitions, 1-second pauses, cursor moves, and cut/paste/delete operations), so each `Ctrl+Z` reverts one word at a time rather than the entire session.
 
 ### Text node word wrap
 
@@ -173,13 +177,34 @@ The net result is O(n) per paragraph (dominated by the single-char measurement p
 
 ## Layout
 
+### Entry point and canvas
+
 - `src/infinite_canvas.cr` — entry point, window setup, main loop, HUD
-- `src/canvas.cr` — `Canvas` class skeleton: constants, enums, state, `initialize`, `save`/`load`, `update`, `draw`
-- `src/canvas_input.cr` — all input handlers (`handle_pan`, `handle_zoom`, `handle_left_mouse`, `handle_text_input`, …), hit-testing, and resize geometry
+- `src/canvas.cr` — `Canvas` class skeleton: constants, enums, state, `initialize`, `save`/`load`, `update`, `draw`; owns `@model` and `@history`; event emission via `emit` / `emit_text_event`
+- `src/canvas_input.cr` — all input handlers (`handle_pan`, `handle_zoom`, `handle_left_mouse`, `handle_text_input`, `handle_undo_redo`, …), hit-testing, resize geometry, word-coalescing buffer
 - `src/canvas_drawing.cr` — drawing helpers (`draw_grid`, `draw_selection`, `draw_draft`)
-- `src/element.cr` — `Element` abstract base class and `ElementData` interface
-- `src/text_editing.cr` — `TextEditing` mixin: cursor, selection, word movement, clipboard
-- `src/rect_element.cr` — `RectElement`: filled rectangle with centred multi-line label
-- `src/text_element.cr` — `TextElement`: plain text node, auto-sized with optional word wrap
-- `src/arrow_element.cr` — `ArrowElement`: orthogonal/straight routing, endpoint spreading
-- `src/persistence.cr` — JSON serialisation mirror structs for save/load
+
+### Event sourcing
+
+- `src/model.cr` — pure data model: `CanvasModel`, `RectModel`, `TextModel`, `ArrowModel`, `BoundsData`, `ColorData`; no Raylib dependency; `JSON::Serializable` for persistence and checkpoints
+- `src/events.cr` — all mutation event types (`CreateRectEvent`, `MoveElementEvent`, `TextChangedEvent`, `InsertTextEvent`, `DeleteTextEvent`, …)
+- `src/apply.cr` — `apply(model, event)`: the single function allowed to mutate the model
+- `src/history.cr` — checkpoint-based undo/redo: event log + serialised checkpoint; `undo`/`redo` return a restored `CanvasModel` via replay
+- `src/view_state.cr` — `ElementViewState`: cursor/selection fields that live outside the model
+
+### Presentation
+
+- `src/layout.cr` — `TextLayout.compute` (O(n) word-wrap with prefix-sum + interpolation-seeded binary search); `ArrowLayout` geometric helpers (`natural_sides`, `exit_point_on_side`, `straight_route`, …)
+- `src/renderer.cr` — `Renderer`: all Raylib draw calls (`draw_element`, `draw_cursor`, `draw_arrow_highlighted`); reads model data from element objects, never mutates them
+
+### Elements (data + behaviour, no draw methods)
+
+- `src/element.cr` — `Element` abstract base class: bounds, id, text-editing stubs
+- `src/text_editing.cr` — `TextEditing` mixin: cursor, selection, word movement, clipboard, blink timing
+- `src/rect_element.cr` — `RectElement`: filled rectangle with centred multi-line label; `fit_content` / `min_size`
+- `src/text_element.cr` — `TextElement`: plain text node, auto-sized with optional word wrap; exposes `visual_line_runs`, `cursor_visual_pos`, `visual_selection_ranges` for the renderer
+- `src/arrow_element.cr` — `ArrowElement`: orthogonal/straight routing, endpoint spreading; `compute_path` resolves endpoints and returns waypoints
+
+### Persistence
+
+- `src/persistence.cr` — Raylib conversions for `ColorData`; legacy `*ElementData` mirror structs used only to migrate old `canvas.json` files (flat `x/y/width/height` format) to the current model-based format on first load

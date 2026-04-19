@@ -2,7 +2,7 @@
 
 ## Bugs / edge cases
 
-1. **`@selected_index` is an index, not an identity** — if elements are ever inserted mid-list (z-order reordering, paste-at-position), the selection index silently points to the wrong element. All insertions currently use `@elements << el` so it's safe today, but one refactor away from a subtle bug. Using an object identity reference (`Element?`) would be more robust.
+1. ~~**`@selected_index` is an index, not an identity**~~ — resolved: `@selected_id : UUID?` and `@selected_ids : Array(UUID)` now track selection by identity; `@selected_index` is a derived cache that is rebuilt after each event via `sync_elements_from_model`.
 
 2. **`save` only runs on clean exit** — `canvas.save` is called once at the bottom of the main loop. A crash, force-quit, or SIGTERM loses all unsaved work. Add autosave every N seconds or on every structural change.
 
@@ -22,7 +22,7 @@
 
 ## Architecture / design
 
-9. **`to_data` is not part of the `Element` interface — `save` has a 3-arm `case` switch** — `to_data` is reopened onto each concrete element type in `persistence.cr` but `Element` has no `abstract def to_data` declaration, so `Canvas#save` must enumerate every type. Adding `RectElement`, `TextElement`, and `ArrowElement` each required a new `when` arm. Fix: declare `abstract def to_data : ElementData` on `Element`; then `save` can call `e.to_data.to_json(json)` with no type switch.
+9. ~~**`to_data` is not part of the `Element` interface**~~ — resolved: the model layer (`CanvasModel`, `RectModel`, `TextModel`, `ArrowModel`) is the canonical data representation; `Canvas#save` is now `File.write(SAVE_FILE, @model.to_json)`. Mirror structs in `persistence.cr` are retained only as a legacy migration path.
 
 10. **`handle_left_mouse` is 70+ lines handling three distinct phases** — split into `handle_mouse_press`, `handle_mouse_drag`, and `handle_mouse_release`. The current method is hard to scan and will only grow as new interaction modes are added.
 
@@ -72,8 +72,8 @@
 
 27. **No `Escape` key to deselect** — clicking on empty space works, but `Escape` is the universal expectation for "cancel / deselect" in canvas apps.
 
-28. **No undo / redo** — any accidental deletion or mistyped label is permanent. The single biggest practical limitation for a note-taking use case.
+28. ~~**No undo / redo**~~ — resolved: full checkpoint-based undo/redo (`Ctrl+Z` / `Ctrl+Y` / `Ctrl+Shift+Z`). Structural events (create, delete, move, resize, arrow style) and text sessions each undo as one step. Per-word undo is active during text editing: consecutive characters coalesce into word groups, with boundaries at whitespace transitions, 1-second pauses, cursor movements, and paste/cut/delete operations.
 
-29. **No multi-select** — `@selected_index : Int32?` allows only one selection. Group-move and group-delete are natural next features.
+29. ~~**No multi-select**~~ — resolved: rubber-band drag selects multiple elements; group-move and group-delete are supported.
 
 30. **HUD bottom-right anchors can clip at very small window sizes** — both `R.draw_fps(R.get_screen_width - 100, …)` and the draw-time label `R.get_screen_width - 110 - label_w` go negative or overlap HUD text if the window is resized very small. Guard with `Math.max`.
