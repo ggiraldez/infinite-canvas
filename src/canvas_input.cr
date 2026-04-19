@@ -332,6 +332,33 @@ class Canvas
     end
   end
 
+  private def handle_undo_redo
+    ctrl = R.key_down?(R::KeyboardKey::LeftControl) || R.key_down?(R::KeyboardKey::RightControl)
+    return unless ctrl
+    if R.key_pressed?(R::KeyboardKey::Z)
+      shift = R.key_down?(R::KeyboardKey::LeftShift) || R.key_down?(R::KeyboardKey::RightShift)
+      shift ? perform_redo : perform_undo
+    elsif R.key_pressed?(R::KeyboardKey::Y)
+      perform_redo
+    end
+  end
+
+  private def perform_undo
+    commit_text_session_if_active
+    return unless (restored = @history.undo)
+    @model           = restored
+    @text_session_id = nil
+    sync_elements_from_model
+  end
+
+  private def perform_redo
+    commit_text_session_if_active
+    return unless (restored = @history.redo)
+    @model           = restored
+    @text_session_id = nil
+    sync_elements_from_model
+  end
+
   # Toggle the routing style of the selected arrow with Tab.
   private def handle_arrow_style_toggle
     return unless (idx = @selected_index)

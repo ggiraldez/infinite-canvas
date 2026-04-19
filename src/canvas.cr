@@ -141,8 +141,17 @@ class Canvas
     handle_left_mouse
     handle_text_input
     handle_delete
+    handle_undo_redo
     handle_tool_switch
     handle_arrow_style_toggle
+  end
+
+  def can_undo? : Bool
+    @history.can_undo?
+  end
+
+  def can_redo? : Bool
+    @history.can_redo?
   end
 
   def draw
