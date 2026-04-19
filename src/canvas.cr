@@ -180,14 +180,24 @@ class Canvas
     viewport = R::Rectangle.new(x: tl.x, y: tl.y, width: br.x - tl.x, height: br.y - tl.y)
 
     # Arrows first so they appear behind shapes and text.
-    # Arrow bounds start at (0,0,0,0) and are only updated during draw, so they
-    # are always drawn regardless of viewport (they are cheap line primitives).
-    @elements.each { |e| @renderer.draw_element(e) if e.is_a?(ArrowElement) }
+    # Arrow bounds come from the layout engine; cull against viewport.
+    @elements.each do |e|
+      next unless e.is_a?(ArrowElement)
+      rd = @render_data[e.id]?
+      next unless rd.is_a?(ArrowRenderData)
+      b = rd.bounds
+      @renderer.draw_element(e, rd) if rd.waypoints.empty? || rects_overlap?(
+        R::Rectangle.new(x: b.x, y: b.y, width: b.w, height: b.h), viewport)
+    end
 
     # Non-arrow elements are culled against the viewport.
     @elements.each do |e|
       next if e.is_a?(ArrowElement)
-      @renderer.draw_element(e) if rects_overlap?(e.bounds, viewport)
+      rd = @render_data[e.id]?
+      next unless rd
+      b = rd.bounds
+      @renderer.draw_element(e, rd) if rects_overlap?(
+        R::Rectangle.new(x: b.x, y: b.y, width: b.w, height: b.h), viewport)
     end
 
     draw_selection

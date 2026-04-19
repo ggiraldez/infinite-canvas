@@ -41,8 +41,10 @@ class Canvas
     thickness = 2.5_f32 / @camera.zoom
 
     if el.is_a?(ArrowElement)
-      # Highlight the arrow line itself instead of drawing a bounding box.
-      @renderer.draw_arrow_highlighted(el, SEL_COLOR, 4.0_f32 / @camera.zoom)
+      rd = @render_data[el.id]?
+      if rd.is_a?(ArrowRenderData)
+        @renderer.draw_arrow_highlighted(rd, SEL_COLOR, 4.0_f32 / @camera.zoom)
+      end
       return
     end
 
@@ -65,7 +67,8 @@ class Canvas
     end
 
     # Blinking text cursor — drawn by renderer.
-    @renderer.draw_cursor(el)
+    rd = @render_data[el.id]?
+    @renderer.draw_cursor(el, rd) if rd
   end
 
   private def rect_from_points(a : R::Vector2, b : R::Vector2) : R::Rectangle
