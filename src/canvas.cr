@@ -8,6 +8,7 @@ require "./layout"
 require "./view_state"
 require "./element"
 require "./persistence"
+require "./renderer"
 
 # Infinite canvas: owns the Camera2D, the element list, and input handling.
 class Canvas
@@ -60,6 +61,7 @@ class Canvas
     (idx = @selected_index) ? @elements[idx]? : nil
   end
 
+  @renderer : Renderer = Renderer.new
   @drag_mode : DragMode = DragMode::None
   @selected_index : Int32? = nil
 
@@ -177,12 +179,12 @@ class Canvas
     # Arrows first so they appear behind shapes and text.
     # Arrow bounds start at (0,0,0,0) and are only updated during draw, so they
     # are always drawn regardless of viewport (they are cheap line primitives).
-    @elements.each { |e| e.draw if e.is_a?(ArrowElement) }
+    @elements.each { |e| @renderer.draw_element(e) if e.is_a?(ArrowElement) }
 
     # Non-arrow elements are culled against the viewport.
     @elements.each do |e|
       next if e.is_a?(ArrowElement)
-      e.draw if rects_overlap?(e.bounds, viewport)
+      @renderer.draw_element(e) if rects_overlap?(e.bounds, viewport)
     end
 
     draw_selection
@@ -219,6 +221,7 @@ class Canvas
           m.text, m.id, m.fixed_width
         )
         el.max_auto_width = m.max_auto_width
+        el.fit_content   # restores @auto_capped and correct bounds after rebuild
         el.as(Element)
       when ArrowModel
         style = m.routing_style == "straight" ?

@@ -17,8 +17,6 @@ abstract class Element
   def initialize(@bounds : R::Rectangle, @id : UUID = UUID.random)
   end
 
-  abstract def draw
-
   def contains?(world_point : R::Vector2) : Bool
     R.check_collision_point_rec?(world_point, bounds)
   end
@@ -75,9 +73,6 @@ abstract class Element
   # Expands bounds if content no longer fits after a text change.
   def fit_content; end
 
-  # Draws a blinking text cursor while this element is selected.
-  # Called inside begin_mode_2d, so coordinates are world space.
-  def draw_cursor; end
 end
 
 require "./text_editing"

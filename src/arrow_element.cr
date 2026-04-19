@@ -44,28 +44,21 @@ class ArrowElement < Element
   # segment of the arrow.  Canvas divides a fixed screen-pixel constant by zoom
   # before calling this so the click target is constant in screen space.
   def near_line?(world_point : R::Vector2, threshold : Float32) : Bool
-    from_el = resolve_from
-    to_el   = resolve_to
-    return false unless from_el && to_el
-    pts = route(from_el.bounds, to_el.bounds)
+    pts = compute_path
+    return false unless pts
     (pts.size - 1).times.any? { |i| segment_dist(world_point, pts[i], pts[i + 1]) <= threshold }
   end
 
-  def draw
+  # Resolves endpoints, computes the route, updates bounds, and returns the path.
+  # Returns nil when either endpoint element cannot be found.
+  # Non-private so Renderer can call it for drawing.
+  def compute_path : Array(R::Vector2)?
     from_el = resolve_from
     to_el   = resolve_to
-    return unless from_el && to_el
+    return nil unless from_el && to_el
     pts = route(from_el.bounds, to_el.bounds)
-    draw_segments(pts, ARROW_COLOR, ARROW_WIDTH)
     update_bounds_from_points(pts)
-  end
-
-  # Draws the arrow in *color* at *width* — used by Canvas for the selection highlight.
-  def draw_highlighted(color : R::Color, width : Float32)
-    from_el = resolve_from
-    to_el   = resolve_to
-    return unless from_el && to_el
-    draw_segments(route(from_el.bounds, to_el.bounds), color, width)
+    pts
   end
 
   private def resolve_from : Element?
@@ -227,34 +220,6 @@ class ArrowElement < Element
     sorted  = siblings.sort_by { |(a, key)| {key, a.id.to_s} }
     my_rank = sorted.index { |(a, _)| a.id == self.id } || 0
     (my_rank + 1).to_f32 / (sorted.size + 1).to_f32
-  end
-
-  # ── Drawing helpers ──────────────────────────────────────────────────────────
-
-  # Draws the polyline *pts* as shaft segments plus a filled arrowhead at the end.
-  private def draw_segments(pts : Array(R::Vector2), color : R::Color, width : Float32)
-    return if pts.size < 2
-    last  = pts.last
-    prev  = pts[pts.size - 2]
-    adx   = last.x - prev.x
-    ady   = last.y - prev.y
-    len   = Math.sqrt(adx * adx + ady * ady).to_f32
-    return if len < 1.0_f32
-    ux = adx / len
-    uy = ady / len
-    shaft_tip = R::Vector2.new(x: last.x - ux * ARROWHEAD_LEN, y: last.y - uy * ARROWHEAD_LEN)
-
-    # All segments up to (but not reaching) the arrowhead base.
-    (pts.size - 2).times { |i| R.draw_line_ex(pts[i], pts[i + 1], width, color) }
-    R.draw_line_ex(prev, shaft_tip, width, color)
-
-    # Filled arrowhead triangle.
-    px   = -uy
-    py   =  ux
-    tip  = last
-    left  = R::Vector2.new(x: shaft_tip.x + px * ARROWHEAD_HALF, y: shaft_tip.y + py * ARROWHEAD_HALF)
-    right = R::Vector2.new(x: shaft_tip.x - px * ARROWHEAD_HALF, y: shaft_tip.y - py * ARROWHEAD_HALF)
-    R.draw_triangle(tip, right, left, color)
   end
 
   private def update_bounds_from_points(pts : Array(R::Vector2))

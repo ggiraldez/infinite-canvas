@@ -177,7 +177,8 @@ module TextEditing
 
   # For a selection [sel_start, sel_end), returns an array of
   # {line_index, col_start, col_end} for each line that overlaps the selection.
-  private def selection_line_ranges(sel_start : Int32, sel_end : Int32) : Array({Int32, Int32, Int32})
+  # Non-private so Renderer can call it for cursor drawing.
+  def selection_line_ranges(sel_start : Int32, sel_end : Int32) : Array({Int32, Int32, Int32})
     result = [] of {Int32, Int32, Int32}
     pos = 0
     editing_text.split('\n').each_with_index do |line, line_idx|
@@ -191,7 +192,7 @@ module TextEditing
     result
   end
 
-  private def lines_before_cursor : Array(String)
+  def lines_before_cursor : Array(String)
     editing_text.chars[0...@cursor_pos].join.split('\n')
   end
 

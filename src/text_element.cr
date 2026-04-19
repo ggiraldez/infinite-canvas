@@ -49,25 +49,6 @@ class TextElement < Element
     @fixed_width || @auto_capped
   end
 
-  def draw
-    return if text.empty?
-    if wraps?
-      visual_line_runs.each_with_index do |(line, _), i|
-        R.draw_text(line,
-          bounds.x.to_i + PADDING,
-          (bounds.y + PADDING + i * FONT_SIZE).to_i,
-          FONT_SIZE, TEXT_COLOR)
-      end
-    else
-      text.split('\n').each_with_index do |line, i|
-        R.draw_text(line,
-          bounds.x.to_i + PADDING,
-          (bounds.y + PADDING + i * FONT_SIZE).to_i,
-          FONT_SIZE, TEXT_COLOR)
-      end
-    end
-  end
-
   def min_size : {Float32, Float32}
     # Minimum allowed width for resize clamping — narrow enough to allow free dragging.
     min_w = (PADDING * 2 + R.measure_text("W", FONT_SIZE)).to_f32
@@ -120,14 +101,6 @@ class TextElement < Element
     end
   end
 
-  def draw_cursor
-    if wraps?
-      draw_cursor_wrapped
-    else
-      draw_cursor_raw
-    end
-  end
-
   def handle_cursor_up(shift : Bool = false)
     return super unless wraps?
     anchor_for_shift(shift)
@@ -154,17 +127,16 @@ class TextElement < Element
     reset_blink
   end
 
-  # ─── private ──────────────────────────────────────────────────────────────────
-
   # Returns visual lines as {line_text, start_offset_in_full_text} pairs.
   # Delegates to TextLayout.compute — algorithm and documentation live there.
-  private def visual_line_runs : TextLayoutData
+  # Non-private so Renderer can call it for drawing and cursor positioning.
+  def visual_line_runs : TextLayoutData
     TextLayout.compute(@text, (bounds.width - PADDING * 2).to_f32, FONT_SIZE)
   end
 
   # Maps @cursor_pos (character offset in full text) to
   # {visual_line_index, x_pixel_offset_within_line}.
-  private def cursor_visual_pos : {Int32, Int32}
+  def cursor_visual_pos : {Int32, Int32}
     runs = visual_line_runs
     return {0, 0} if runs.empty?
 
@@ -185,7 +157,7 @@ class TextElement < Element
 
   # Returns {visual_line_idx, col_start, col_end} for each visual line that
   # overlaps the character range [sel_start, sel_end).
-  private def visual_selection_ranges(sel_start : Int32, sel_end : Int32) : Array({Int32, Int32, Int32})
+  def visual_selection_ranges(sel_start : Int32, sel_end : Int32) : Array({Int32, Int32, Int32})
     result = [] of {Int32, Int32, Int32}
     visual_line_runs.each_with_index do |(line_str, line_start), vi|
       line_chars = line_str.chars.size
@@ -197,48 +169,5 @@ class TextElement < Element
       end
     end
     result
-  end
-
-  private def draw_cursor_raw
-    if (range = selection_range)
-      all_lines = text.split('\n')
-      selection_line_ranges(range[0], range[1]).each do |line_idx, col_start, col_end|
-        line  = all_lines.fetch(line_idx, "")
-        chars = line.chars
-        x1 = bounds.x + PADDING + R.measure_text(chars[0, col_start].join, FONT_SIZE)
-        x2 = bounds.x + PADDING + R.measure_text(chars[0, col_end].join, FONT_SIZE)
-        y  = bounds.y + PADDING + line_idx * FONT_SIZE
-        R.draw_rectangle_rec(R::Rectangle.new(x: x1, y: y, width: x2 - x1, height: FONT_SIZE.to_f32), SELECTION_COLOR)
-      end
-    end
-
-    return unless cursor_visible?
-    lines_b  = lines_before_cursor
-    line_idx = lines_b.size - 1
-    col_text = lines_b.last
-    tw = R.measure_text(col_text, FONT_SIZE)
-    cx = bounds.x.to_i + PADDING + tw
-    cy = (bounds.y + PADDING + line_idx * FONT_SIZE).to_i
-    R.draw_text("|", cx, cy, FONT_SIZE, TEXT_COLOR)
-  end
-
-  private def draw_cursor_wrapped
-    if (range = selection_range)
-      all_runs = visual_line_runs
-      visual_selection_ranges(range[0], range[1]).each do |vi, col_start, col_end|
-        line_str = all_runs.fetch(vi, {"", 0})[0]
-        chars    = line_str.chars
-        x1 = bounds.x + PADDING + R.measure_text(chars[0, col_start].join, FONT_SIZE)
-        x2 = bounds.x + PADDING + R.measure_text(chars[0, col_end].join, FONT_SIZE)
-        y  = bounds.y + PADDING + vi * FONT_SIZE
-        R.draw_rectangle_rec(R::Rectangle.new(x: x1, y: y, width: x2 - x1, height: FONT_SIZE.to_f32), SELECTION_COLOR)
-      end
-    end
-
-    return unless cursor_visible?
-    vi, x_px = cursor_visual_pos
-    cx = (bounds.x + PADDING + x_px).to_i
-    cy = (bounds.y + PADDING + vi * FONT_SIZE).to_i
-    R.draw_text("|", cx, cy, FONT_SIZE, TEXT_COLOR)
   end
 end

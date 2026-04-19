@@ -42,7 +42,7 @@ class Canvas
 
     if el.is_a?(ArrowElement)
       # Highlight the arrow line itself instead of drawing a bounding box.
-      el.draw_highlighted(SEL_COLOR, 4.0_f32 / @camera.zoom)
+      @renderer.draw_arrow_highlighted(el, SEL_COLOR, 4.0_f32 / @camera.zoom)
       return
     end
 
@@ -64,8 +64,8 @@ class Canvas
       end
     end
 
-    # Blinking text cursor — each element type draws its own cursor.
-    el.draw_cursor
+    # Blinking text cursor — drawn by renderer.
+    @renderer.draw_cursor(el)
   end
 
   private def rect_from_points(a : R::Vector2, b : R::Vector2) : R::Rectangle
