@@ -109,48 +109,28 @@ class Canvas
   end
 
   def save
-    json_str = JSON.build do |json|
-      json.object do
-        json.field "elements" do
-          json.array do
-            @elements.each do |e|
-              case e
-              when RectElement  then RectElementData.new(e).to_json(json)
-              when TextElement  then TextElementData.new(e).to_json(json)
-              when ArrowElement then ArrowElementData.new(e).to_json(json)
-              end
-            end
-          end
-        end
-      end
-    end
-    File.write(SAVE_FILE, json_str)
+    File.write(SAVE_FILE, @model.to_json)
   rescue ex
     STDERR.puts "Warning: could not save canvas — #{ex.message}"
   end
 
   def load
     return unless File.exists?(SAVE_FILE)
-    raw = JSON.parse(File.read(SAVE_FILE))
-    # Support legacy "rects" key from older save files (items default to type "rect").
+    json_str = File.read(SAVE_FILE)
+    raw   = JSON.parse(json_str)
     items = (raw["elements"]? || raw["rects"]?).try(&.as_a?) || return
-    @elements = items.compact_map do |item|
-      type = item["type"]?.try(&.as_s?) || "rect"
-      data = item.to_json
-      case type
-      when "rect"  then RectElementData.from_json(data).to_element.as(Element)
-      when "text"  then TextElementData.from_json(data).to_element.as(Element)
-      when "arrow" then ArrowElementData.from_json(data).to_element(@elements).as(Element)
-      end
-    end
-    # compact_map returns a new array assigned to @elements after the block
-    # finishes, so arrows constructed inside the block hold a reference to the
-    # old array. Patch them here to point at the live one.
-    @elements.each { |e| e.elements = @elements if e.is_a?(ArrowElement) }
 
-    # Populate model from the loaded elements so history has the correct baseline.
-    @model = elements_to_model(@elements)
-    @history.reset(@model)
+    if items.first?.try { |e| e["bounds"]? }
+      # New format: CanvasModel serialises directly with a nested "bounds" object.
+      @model = CanvasModel.from_json(json_str)
+      @history.reset(@model)
+      sync_elements_from_model
+    else
+      # Legacy format: flat x/y/width/height fields. Load via mirror structs,
+      # then immediately save in the new format so the file is migrated.
+      load_legacy(items)
+      save
+    end
   rescue ex
     STDERR.puts "Warning: could not load canvas — #{ex.message}"
   end
@@ -283,6 +263,26 @@ class Canvas
     event = TextChangedEvent.new(tid, new_text, BoundsData.new(b.x, b.y, b.width, b.height))
     apply(@model, event)
     @history.push(event)
+  end
+
+  # Load from the old flat-field format (x/y/width/height, no nested bounds).
+  # Builds @elements via the *ElementData mirror structs, seeds the model, and
+  # resets history. The caller immediately saves to migrate to the new format.
+  private def load_legacy(items : Array(JSON::Any)) : Nil
+    @elements = items.compact_map do |item|
+      type = item["type"]?.try(&.as_s?) || "rect"
+      data = item.to_json
+      case type
+      when "rect"  then RectElementData.from_json(data).to_element.as(Element)
+      when "text"  then TextElementData.from_json(data).to_element.as(Element)
+      when "arrow" then ArrowElementData.from_json(data).to_element(@elements).as(Element)
+      end
+    end
+    # compact_map assigns a new array to @elements after the block, so patch
+    # arrow back-references to point at the live array.
+    @elements.each { |e| e.elements = @elements if e.is_a?(ArrowElement) }
+    @model = elements_to_model(@elements)
+    @history.reset(@model)
   end
 
   # Build a CanvasModel from the current @elements array.

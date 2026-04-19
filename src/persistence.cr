@@ -3,13 +3,11 @@ require "uuid"
 require "./element"
 require "./model"
 
-# Raylib conversions and JSON serialization for model value types.
-# ColorData and BoundsData are defined in model.cr (no Raylib dep).
-# Raylib-dependent methods and JSON::Serializable are added here via reopen.
+# Raylib conversions for model value types.
+# JSON::Serializable is already included in model.cr (no Raylib dep there).
+# Raylib-dependent methods are added here via reopen.
 
 struct ColorData
-  include JSON::Serializable
-
   def initialize(c : R::Color)
     @r, @g, @b, @a = c.r, c.g, c.b, c.a
   end
@@ -19,7 +17,9 @@ struct ColorData
   end
 end
 
-# ─── Concrete data classes ─────────────────────────────────────────────────────
+# ─── Legacy mirror structs ─────────────────────────────────────────────────────
+# Used only for migrating old canvas.json files that lack the "bounds" wrapper key.
+# Loaded once on first run with old data, then immediately saved in the new format.
 
 class RectElementData < ElementData
   include JSON::Serializable
@@ -79,23 +79,6 @@ class TextElementData < ElementData
   end
 end
 
-# ─── Reopen element classes to add persistence (avoids forward references) ────
-
-# to_data is defined here rather than in element.cr so that element.cr stays
-# free of references to the concrete data classes.
-
-class RectElement
-  def to_data : ElementData
-    RectElementData.new(self)
-  end
-end
-
-class TextElement
-  def to_data : ElementData
-    TextElementData.new(self)
-  end
-end
-
 class ArrowElementData < ElementData
   include JSON::Serializable
 
@@ -121,11 +104,5 @@ class ArrowElementData < ElementData
   # Satisfy the abstract contract — callers that need the elements list use to_element(elements).
   def to_element : Element
     raise "ArrowElementData requires the elements array; call to_element(elements) instead"
-  end
-end
-
-class ArrowElement
-  def to_data : ElementData
-    ArrowElementData.new(self)
   end
 end

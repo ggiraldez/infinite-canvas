@@ -1,10 +1,25 @@
+require "json"
 require "uuid"
+
+# JSON::Serializable uses `T.new(pull)` for deserialization. UUID doesn't
+# provide that constructor, so we add it here once for all serialisable models.
+struct UUID
+  def self.new(pull : JSON::PullParser)
+    new(pull.read_string)
+  end
+
+  def to_json(json : JSON::Builder)
+    json.string(to_s)
+  end
+end
 
 # Pure canvas data model — zero Raylib dependency.
 # All coordinates and sizes are plain Float32.
-# Serialization and Raylib conversions are added in persistence.cr via reopen.
+# Raylib conversions are added in persistence.cr via reopen.
 
 struct BoundsData
+  include JSON::Serializable
+
   property x : Float32
   property y : Float32
   property w : Float32
@@ -15,6 +30,8 @@ struct BoundsData
 end
 
 struct ColorData
+  include JSON::Serializable
+
   property r : UInt8
   property g : UInt8
   property b : UInt8
@@ -24,9 +41,13 @@ struct ColorData
   end
 end
 
-# Abstract base for all canvas elements. Subclasses own their own fields;
-# this class owns only the identity and bounding box.
+# Abstract base for all canvas elements.
+# use_json_discriminator reads the "type" field to dispatch to the right subclass.
 abstract class ElementModel
+  include JSON::Serializable
+
+  use_json_discriminator "type", {rect: RectModel, text: TextModel, arrow: ArrowModel}
+
   property id : UUID
   property bounds : BoundsData
 
@@ -35,6 +56,7 @@ abstract class ElementModel
 end
 
 class RectModel < ElementModel
+  property type : String = "rect"
   property fill : ColorData
   property stroke : ColorData
   property stroke_width : Float32
@@ -48,8 +70,10 @@ class RectModel < ElementModel
 end
 
 class TextModel < ElementModel
+  property type : String = "text"
   property text : String
   property fixed_width : Bool
+  @[JSON::Field(emit_null: false)]
   property max_auto_width : Float32?
 
   def initialize(@id : UUID, @bounds : BoundsData, @text : String,
@@ -59,6 +83,7 @@ class TextModel < ElementModel
 end
 
 class ArrowModel < ElementModel
+  property type : String = "arrow"
   property from_id : UUID
   property to_id : UUID
   property routing_style : String # "orthogonal" | "straight"
@@ -72,6 +97,8 @@ class ArrowModel < ElementModel
 end
 
 class CanvasModel
+  include JSON::Serializable
+
   property elements : Array(ElementModel)
 
   def initialize
