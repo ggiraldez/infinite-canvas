@@ -224,7 +224,6 @@ class Canvas
           m.text, m.id, m.fixed_width
         )
         el.max_auto_width = m.max_auto_width
-        el.fit_content   # restores @auto_capped and correct bounds after rebuild
         el.as(Element)
       when ArrowModel
         style = m.routing_style == "straight" ?
@@ -259,6 +258,7 @@ class Canvas
 
     @render_data = @layout_engine.layout(@model)
     inject_arrow_waypoints
+    inject_text_element_cache
   end
 
   private def inject_arrow_waypoints : Nil
@@ -268,6 +268,38 @@ class Canvas
       next unless rd.is_a?(ArrowRenderData)
       e.cached_waypoints = rd.waypoints.map { |p| R::Vector2.new(x: p[0], y: p[1]) }
     end
+  end
+
+  # Injects layout engine output into each TextElement so visual_line_runs
+  # and wraps? return correct values without calling R.measure_text.
+  # Also updates element bounds so the Renderer can read them directly (Phase 3).
+  private def inject_text_element_cache : Nil
+    @elements.each do |e|
+      next unless e.is_a?(TextElement)
+      rd = @render_data[e.id]?
+      next unless rd.is_a?(TextRenderData)
+      e.cached_line_runs = rd.line_runs
+      e.cached_wraps     = rd.wraps
+      e.bounds = R::Rectangle.new(x: rd.bounds.x, y: rd.bounds.y,
+                                   width: rd.bounds.w, height: rd.bounds.h)
+    end
+  end
+
+  # Re-runs layout for a single TextElement using its current live state
+  # (text and bounds may differ from the model during an active text session).
+  # Injects the result back into the element so visual_line_runs stays current.
+  private def refresh_element_layout(el : Element) : Nil
+    return unless el.is_a?(TextElement)
+    m = @model.find_by_id(el.id)
+    return unless m.is_a?(TextModel)
+    tmp = TextModel.new(m.id,
+      BoundsData.new(el.bounds.x, el.bounds.y, el.bounds.width, el.bounds.height),
+      el.text, el.fixed_width, el.max_auto_width)
+    rd = @layout_engine.layout_text_element(tmp)
+    el.cached_line_runs = rd.line_runs
+    el.cached_wraps     = rd.wraps
+    el.bounds = R::Rectangle.new(x: rd.bounds.x, y: rd.bounds.y,
+                                  width: rd.bounds.w, height: rd.bounds.h)
   end
 
   # Flush any live text edits to the model as a TextChangedEvent.

@@ -134,7 +134,7 @@ class Canvas
           # For TextElements, lock in the user-chosen width and re-flow height live.
           if el.is_a?(TextElement)
             el.fixed_width = true
-            el.fit_content
+            refresh_element_layout(el)
           end
         end
       end
@@ -198,14 +198,13 @@ class Canvas
                                              width: dragged.width, height: dragged.height)
                           : R::Rectangle.new(x: start.x, y: start.y,
                                              width: 0.0_f32, height: 0.0_f32)
-            text_id = UUID.random
-            # Create a temporary element solely to compute fit_content bounds.
-            tmp = TextElement.new(raw, "", text_id)
-            tmp.max_auto_width = maw
-            tmp.fit_content
-            fb    = tmp.bounds
+            text_id  = UUID.random
+            raw_bd   = BoundsData.new(raw.x, raw.y, raw.width, raw.height)
+            tmp_m    = TextModel.new(text_id, raw_bd, "", false, maw)
+            tmp_rd   = @layout_engine.layout_text_element(tmp_m)
             event = CreateTextEvent.new(text_id,
-                      BoundsData.new(fb.x, fb.y, fb.width, fb.height), "", false, maw)
+                      BoundsData.new(tmp_rd.bounds.x, tmp_rd.bounds.y,
+                                     tmp_rd.bounds.w, tmp_rd.bounds.h), "", false, maw)
             emit(event)
             select_element(@elements.index { |e| e.id == text_id })
             @active_tool = ActiveTool::Selection
@@ -339,7 +338,7 @@ class Canvas
     if el.is_a?(TextElement)
       el.max_auto_width = R.get_screen_width.to_f32 / (2.0_f32 * @camera.zoom)
     end
-    el.fit_content
+    refresh_element_layout(el)
 
     return if last_op == :none
 
@@ -420,6 +419,19 @@ class Canvas
     apply(@model, event)
     @history.push(event)
     @render_data = @layout_engine.layout(@model)
+    # Inject updated cache into the live text element (model text is now in sync).
+    if (sid = @text_session_id)
+      rd = @render_data[sid]?
+      if rd.is_a?(TextRenderData)
+        el = @elements.find { |e| e.id == sid }
+        if el.is_a?(TextElement)
+          el.cached_line_runs = rd.line_runs
+          el.cached_wraps     = rd.wraps
+          el.bounds = R::Rectangle.new(x: rd.bounds.x, y: rd.bounds.y,
+                                        width: rd.bounds.w, height: rd.bounds.h)
+        end
+      end
+    end
   end
 
   # Emit the coalescing buffer as a single InsertTextEvent and clear it.

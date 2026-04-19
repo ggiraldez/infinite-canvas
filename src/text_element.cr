@@ -13,10 +13,9 @@ class TextElement < Element
 
   property text : String
   property fixed_width : Bool
-  # Set by Canvas each time fit_content is called; limits auto-grow width.
   property max_auto_width : Float32? = nil
-  # True when auto-width is soft-capped (not user-set, but content exceeds cap).
-  @auto_capped : Bool = false
+  property cached_line_runs : TextLayoutData? = nil
+  property cached_wraps : Bool = false
 
   def editing_text : String
     @text
@@ -43,62 +42,19 @@ class TextElement < Element
     true
   end
 
-  # True when the text should be rendered with word-wrap:
-  # either the user explicitly set a width, or auto-width hit the cap.
+  # True when the text should be rendered with word-wrap.
   def wraps? : Bool
-    @fixed_width || @auto_capped
+    @fixed_width || @cached_wraps
   end
 
   def min_size : {Float32, Float32}
-    # Minimum allowed width for resize clamping — narrow enough to allow free dragging.
-    min_w = (PADDING * 2 + R.measure_text("W", FONT_SIZE)).to_f32
-    if text.empty?
-      return {min_w, (FONT_SIZE + PADDING * 2).to_f32}
-    end
-    if wraps?
-      line_count = visual_line_runs.size
-      {min_w, (line_count * FONT_SIZE + PADDING * 2).to_f32}
-    else
-      lines = text.split('\n')
-      max_tw = lines.map { |l| R.measure_text(l, FONT_SIZE) }.max? || 0
-      {(max_tw + PADDING * 2).to_f32, (lines.size * FONT_SIZE + PADDING * 2).to_f32}
-    end
+    line_count = @cached_line_runs.try(&.size) || 1
+    {(PADDING * 2 + 10).to_f32, (line_count * FONT_SIZE + PADDING * 2).to_f32}
   end
 
   def fit_content
-    if @fixed_width
-      # User locked the width — preserve it, recompute height from wrapped content.
-      @auto_capped = false
-      line_count = text.empty? ? 1 : visual_line_runs.size
-      mh = (line_count * FONT_SIZE + PADDING * 2).to_f32
-      @bounds = R::Rectangle.new(x: bounds.x, y: bounds.y, width: bounds.width, height: mh)
-      return
-    end
-
-    # Auto mode: measure uncapped content size.
-    if text.empty?
-      cursor_w = R.measure_text("|", FONT_SIZE)
-      content_w = (cursor_w + PADDING * 2).to_f32
-      content_h = (FONT_SIZE + PADDING * 2).to_f32
-    else
-      lines = text.split('\n')
-      max_tw = lines.map { |l| R.measure_text(l, FONT_SIZE) }.max? || 0
-      content_w = (max_tw + PADDING * 2).to_f32
-      content_h = (lines.size * FONT_SIZE + PADDING * 2).to_f32
-    end
-
-    cap = @max_auto_width
-    if cap && content_w > cap
-      # Soft-cap: clamp width and wrap text for the height calculation.
-      @auto_capped = true
-      @bounds = R::Rectangle.new(x: bounds.x, y: bounds.y, width: cap, height: bounds.height)
-      line_count = text.empty? ? 1 : visual_line_runs.size
-      mh = (line_count * FONT_SIZE + PADDING * 2).to_f32
-      @bounds = R::Rectangle.new(x: bounds.x, y: bounds.y, width: cap, height: mh)
-    else
-      @auto_capped = false
-      @bounds = R::Rectangle.new(x: bounds.x, y: bounds.y, width: content_w, height: content_h)
-    end
+    # No-op: LayoutEngine owns all sizing. Canvas calls refresh_element_layout
+    # after text changes, which injects cached_line_runs and updates bounds.
   end
 
   def handle_cursor_up(shift : Bool = false)
@@ -127,11 +83,10 @@ class TextElement < Element
     reset_blink
   end
 
-  # Returns visual lines as {line_text, start_offset_in_full_text} pairs.
-  # Delegates to TextLayout.compute — algorithm and documentation live there.
-  # Non-private so Renderer can call it for drawing and cursor positioning.
+  # Returns cached visual line runs. Panics if layout hasn't run yet —
+  # layout always precedes draw and cursor navigation.
   def visual_line_runs : TextLayoutData
-    TextLayout.compute(@text, (bounds.width - PADDING * 2).to_f32, FONT_SIZE) { |s| R.measure_text(s, FONT_SIZE) }
+    @cached_line_runs.not_nil!
   end
 
   # Maps @cursor_pos (character offset in full text) to

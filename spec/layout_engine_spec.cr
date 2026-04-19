@@ -117,6 +117,40 @@ describe LayoutEngine do
       t.bounds.w.should eq 80_f32
     end
 
+    it "wraps multi-paragraph text and computes correct height" do
+      id    = UUID.random
+      model = CanvasModel.new
+      # Two paragraphs separated by \n, each long enough to wrap at cap=80.
+      # "hello world\ngoodbye world" — both lines > 80px wide with stub.
+      # With cap=80, avail_w=64, each paragraph wraps independently.
+      model.elements << TextModel.new(id, BoundsData.new(0_f32, 0_f32, 200_f32, 40_f32),
+        "hello world\ngoodbye world", max_auto_width: 80_f32)
+
+      t = make_engine.layout(model)[id].as(TextRenderData)
+
+      t.wraps.should be_true
+      t.line_runs.size.should be > 2
+      t.bounds.h.should eq (t.line_runs.size * LayoutEngine::TEXT_FONT_SIZE + LayoutEngine::TEXT_PADDING * 2).to_f32
+    end
+
+    # ── layout_text_element (public single-element entry point) ─────────────────
+
+    it "layout_text_element produces the same result as layout for that element" do
+      id    = UUID.random
+      model = CanvasModel.new
+      model.elements << TextModel.new(id, BoundsData.new(5_f32, 10_f32, 200_f32, 40_f32), "hello")
+
+      engine = make_engine
+      via_layout = engine.layout(model)[id].as(TextRenderData)
+      via_single = engine.layout_text_element(
+        TextModel.new(id, BoundsData.new(5_f32, 10_f32, 200_f32, 40_f32), "hello"))
+
+      via_single.bounds.x.should eq via_layout.bounds.x
+      via_single.bounds.w.should eq via_layout.bounds.w
+      via_single.line_runs.should eq via_layout.line_runs
+      via_single.wraps.should eq via_layout.wraps
+    end
+
     # ── RectRenderData ─────────────────────────────────────────────────────────
 
     it "returns RectRenderData for a rect element" do

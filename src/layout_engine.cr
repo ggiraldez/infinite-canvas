@@ -15,6 +15,12 @@ class LayoutEngine
   def initialize(@measure : Measurer)
   end
 
+  # Public entry point for laying out a single TextModel — used by Canvas
+  # to refresh the live element cache during text sessions without a full sync.
+  def layout_text_element(m : TextModel) : TextRenderData
+    layout_text(m)
+  end
+
   def layout(model : CanvasModel) : RenderData
     rd = RenderData.new
     model.elements.each do |m|
