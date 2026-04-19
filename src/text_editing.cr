@@ -16,6 +16,10 @@ module TextEditing
   # @cursor_pos is the "active" (moving) end.
   @selection_anchor : Int32? = nil
 
+  def cursor_pos : Int32
+    @cursor_pos
+  end
+
   # Call at the end of initialize to place the cursor after existing text.
   private def init_cursor
     @cursor_pos = editing_text.chars.size

@@ -87,3 +87,24 @@ class ArrowRoutingChangedEvent < CanvasEvent
 
   def initialize(@id : UUID, @new_style : String); end
 end
+
+# Fine-grained text events for per-word undo within a text session.
+# Emitted immediately during editing (no sync); model stays in step with the element.
+
+class InsertTextEvent < CanvasEvent
+  property id : UUID
+  property position : Int32       # char offset where text was inserted
+  property text : String          # inserted text (1 char normally; multi for paste)
+  property new_bounds : BoundsData
+
+  def initialize(@id : UUID, @position : Int32, @text : String, @new_bounds : BoundsData); end
+end
+
+class DeleteTextEvent < CanvasEvent
+  property id : UUID
+  property start : Int32          # char offset of first deleted char
+  property length : Int32         # number of chars deleted
+  property new_bounds : BoundsData
+
+  def initialize(@id : UUID, @start : Int32, @length : Int32, @new_bounds : BoundsData); end
+end

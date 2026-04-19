@@ -68,6 +68,34 @@ def apply(model : CanvasModel, event : CanvasEvent) : CanvasModel
         e.routing_style = event.new_style
       end
     end
+
+  when InsertTextEvent
+    model.find_by_id(event.id).try do |e|
+      case e
+      when TextModel
+        chars  = e.text.chars
+        e.text = (chars[0, event.position] + event.text.chars + chars[event.position..]).join
+        e.bounds = event.new_bounds
+      when RectModel
+        chars   = e.label.chars
+        e.label = (chars[0, event.position] + event.text.chars + chars[event.position..]).join
+        e.bounds = event.new_bounds
+      end
+    end
+
+  when DeleteTextEvent
+    model.find_by_id(event.id).try do |e|
+      case e
+      when TextModel
+        chars  = e.text.chars
+        e.text = (chars[0, event.start] + chars[(event.start + event.length)..]).join
+        e.bounds = event.new_bounds
+      when RectModel
+        chars   = e.label.chars
+        e.label = (chars[0, event.start] + chars[(event.start + event.length)..]).join
+        e.bounds = event.new_bounds
+      end
+    end
   end
 
   model

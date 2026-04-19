@@ -46,6 +46,12 @@ abstract class Element
   def handle_cursor_word_right(shift : Bool = false); end
   def handle_cursor_up(shift : Bool = false); end
   def handle_cursor_down(shift : Bool = false); end
+  # Returns the cursor character offset — 0 for non-editing elements.
+  def cursor_pos : Int32; 0; end
+
+  # Returns the active selection range, or nil — no-op unless the element uses TextEditing.
+  def selection_range : {Int32, Int32}?; nil; end
+
   # Clears any active text selection — no-op unless the element uses TextEditing.
   def clear_selection; end
 

@@ -21,7 +21,7 @@ Full conversion of the canvas from direct-mutation + Raylib-coupled elements to:
 - [x] Phase 6 — Extract renderer (`src/renderer.cr`)
 - [x] Phase 7 — Model-based persistence (replace `*ElementData` mirror structs)
 - [x] Phase 8 — Wire undo/redo (Ctrl+Z/Y)
-- [ ] Phase 9 — Fine-grained text events (optional, per-word undo)
+- [x] Phase 9 — Fine-grained text events (per-word undo during text editing)
 
 **Rule**: The app must compile and run correctly after every phase.  
 Phases 1–3 are purely additive (new files only).  

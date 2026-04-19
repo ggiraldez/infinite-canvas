@@ -263,58 +263,139 @@ class Canvas
   private def handle_text_input
     return unless (idx = @selected_index)
     el = @elements[idx]
+    id = el.id
 
-    # Append any queued printable characters.
-    while (ch = R.get_char_pressed) > 0
-      el.handle_char_input(ch.chr)
+    # Snapshot before any operations this frame.
+    text_before   = editing_text_for(el)
+    cursor_before = el.cursor_pos
+    had_selection = !el.selection_range.nil?
+    last_op       = :none  # :char | :backspace | :backspace_word | :paste | :cut | :cursor
+
+    # ── Char input ─────────────────────────────────────────────────────────────
+    chars_typed = ""
+    while (code = R.get_char_pressed) > 0
+      chars_typed += code.chr.to_s
+      el.handle_char_input(code.chr)
+      last_op = :char
     end
-
-    # Enter inserts a newline.
     if R.key_pressed?(R::KeyboardKey::Enter) || R.key_pressed_repeat?(R::KeyboardKey::Enter)
+      chars_typed += "\n"
       el.handle_enter
+      last_op = :char
     end
 
-    # Arrow keys: move the cursor. Ctrl jumps by word; Shift extends selection.
+    # ── Delete ─────────────────────────────────────────────────────────────────
     ctrl  = R.key_down?(R::KeyboardKey::LeftControl) || R.key_down?(R::KeyboardKey::RightControl)
     shift = R.key_down?(R::KeyboardKey::LeftShift)   || R.key_down?(R::KeyboardKey::RightShift)
 
-    # Backspace: delete character (or word with Ctrl) before the cursor.
     if R.key_pressed?(R::KeyboardKey::Backspace) || R.key_pressed_repeat?(R::KeyboardKey::Backspace)
-      ctrl ? el.handle_backspace_word : el.handle_backspace
+      if ctrl
+        el.handle_backspace_word
+        last_op = :backspace_word
+      else
+        el.handle_backspace
+        last_op = :backspace
+      end
     end
 
-    # Clipboard: Ctrl+C copies selection, Ctrl+X cuts selection, Ctrl+V pastes (replacing selection).
+    # ── Clipboard ──────────────────────────────────────────────────────────────
+    paste_text = nil
     if ctrl && R.key_pressed?(R::KeyboardKey::C)
-      if (copied = el.handle_copy)
-        R.set_clipboard_text(copied)
-      end
+      if (copied = el.handle_copy); R.set_clipboard_text(copied); end
     end
     if ctrl && R.key_pressed?(R::KeyboardKey::X)
       if (cut = el.handle_cut)
         R.set_clipboard_text(cut)
+        last_op = :cut
       end
     end
     if ctrl && (R.key_pressed?(R::KeyboardKey::V) || R.key_pressed_repeat?(R::KeyboardKey::V))
       cb = String.new(R.get_clipboard_text.as(Pointer(UInt8)))
-      el.handle_paste(cb) unless cb.empty?
+      unless cb.empty?
+        paste_text = cb
+        el.handle_paste(cb)
+        last_op = :paste
+      end
     end
+
+    # ── Cursor movement ─────────────────────────────────────────────────────────
     if R.key_pressed?(R::KeyboardKey::Left) || R.key_pressed_repeat?(R::KeyboardKey::Left)
       ctrl ? el.handle_cursor_word_left(shift) : el.handle_cursor_left(shift)
+      last_op = :cursor if last_op == :none
     end
     if R.key_pressed?(R::KeyboardKey::Right) || R.key_pressed_repeat?(R::KeyboardKey::Right)
       ctrl ? el.handle_cursor_word_right(shift) : el.handle_cursor_right(shift)
+      last_op = :cursor if last_op == :none
     end
     if R.key_pressed?(R::KeyboardKey::Up) || R.key_pressed_repeat?(R::KeyboardKey::Up)
       el.handle_cursor_up(shift)
+      last_op = :cursor if last_op == :none
     end
     if R.key_pressed?(R::KeyboardKey::Down) || R.key_pressed_repeat?(R::KeyboardKey::Down)
       el.handle_cursor_down(shift)
+      last_op = :cursor if last_op == :none
     end
 
     if el.is_a?(TextElement)
       el.max_auto_width = R.get_screen_width.to_f32 / (2.0_f32 * @camera.zoom)
     end
     el.fit_content
+
+    return if last_op == :none
+
+    text_after  = editing_text_for(el)
+    b           = el.bounds
+    bounds_now  = BoundsData.new(b.x, b.y, b.width, b.height)
+    cursor_after = el.cursor_pos
+
+    case last_op
+    when :char
+      if had_selection || chars_typed.size != 1
+        # Selection replace or multiple chars in one frame: full-state event.
+        flush_text_coalesce
+        emit_text_event(TextChangedEvent.new(id, text_after, bounds_now)) if text_before != text_after
+      else
+        # Single char insert with no prior selection: coalesce into a word group.
+        ch        = chars_typed[0]
+        timed_out = R.get_time - @text_coalesce_time > COALESCE_TIMEOUT
+        boundary  = !@text_coalesce_text.empty? &&
+                    !ch.whitespace? && @text_coalesce_text[-1].whitespace?
+        flush_text_coalesce if @text_coalesce_id != id || timed_out || boundary
+        @text_coalesce_id     = id      if @text_coalesce_id.nil?
+        @text_coalesce_pos    = cursor_before if @text_coalesce_text.empty?
+        @text_coalesce_text  += ch.to_s
+        @text_coalesce_bounds = bounds_now
+        @text_coalesce_time   = R.get_time
+      end
+
+    when :backspace
+      flush_text_coalesce
+      if text_before != text_after
+        if had_selection
+          emit_text_event(TextChangedEvent.new(id, text_after, bounds_now))
+        else
+          emit_text_event(DeleteTextEvent.new(id, cursor_after, cursor_before - cursor_after, bounds_now))
+        end
+      end
+
+    when :backspace_word, :cut
+      flush_text_coalesce
+      emit_text_event(TextChangedEvent.new(id, text_after, bounds_now)) if text_before != text_after
+
+    when :paste
+      flush_text_coalesce
+      if text_before != text_after
+        pt = paste_text
+        if had_selection || pt.nil?
+          emit_text_event(TextChangedEvent.new(id, text_after, bounds_now))
+        else
+          emit_text_event(InsertTextEvent.new(id, cursor_before, pt, bounds_now))
+        end
+      end
+
+    when :cursor
+      flush_text_coalesce  # cursor movement is always a word boundary
+    end
   end
 
   private def handle_delete
@@ -329,6 +410,33 @@ class Canvas
     elsif (idx = @selected_index)
       @text_session_id = nil  # discard any text session — element is gone
       emit(DeleteElementEvent.new(@elements[idx].id))
+    end
+  end
+
+  # Applies a text event to the model + history without triggering sync.
+  # During a text session the element is the live source of truth; syncing
+  # would lose cursor position. Model and element stay in step via these events.
+  private def emit_text_event(event : CanvasEvent) : Nil
+    apply(@model, event)
+    @history.push(event)
+  end
+
+  # Emit the coalescing buffer as a single InsertTextEvent and clear it.
+  private def flush_text_coalesce : Nil
+    return if @text_coalesce_text.empty?
+    id = @text_coalesce_id || return
+    emit_text_event(InsertTextEvent.new(id, @text_coalesce_pos,
+                      @text_coalesce_text, @text_coalesce_bounds))
+    @text_coalesce_id   = nil
+    @text_coalesce_text = ""
+  end
+
+  # Returns the editable text of an element (label for rects, text for text nodes).
+  private def editing_text_for(el : Element) : String
+    case el
+    when TextElement then el.text
+    when RectElement then el.label
+    else                  ""
     end
   end
 

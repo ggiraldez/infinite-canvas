@@ -81,6 +81,15 @@ class Canvas
   # TextChangedEvent is emitted on session commit (deselect / move / resize).
   @text_session_id : UUID? = nil
 
+  # Coalescing buffer for consecutive character inserts (word-at-a-time undo).
+  # Chars accumulate here until a word boundary is crossed, then one InsertTextEvent is emitted.
+  COALESCE_TIMEOUT    =  1.0_f64   # seconds — pause longer than this starts a new word group
+  @text_coalesce_id     : UUID?     = nil
+  @text_coalesce_pos    : Int32     = 0
+  @text_coalesce_text   : String    = ""
+  @text_coalesce_bounds : BoundsData = BoundsData.new(0.0_f32, 0.0_f32, 0.0_f32, 0.0_f32)
+  @text_coalesce_time   : Float64   = 0.0
+
   # Drawing state
   @draw_start : R::Vector2?
   @draw_current : R::Vector2?
@@ -252,6 +261,7 @@ class Canvas
   # Does NOT call sync — the caller's emit will do that.
   # No-op when text is identical to the model (avoids spurious history entries).
   private def commit_text_session_if_active : Nil
+    flush_text_coalesce          # emit any buffered chars before comparing to model
     return unless (tid = @text_session_id)
     @text_session_id = nil  # clear first so re-entrant calls are safe
     return unless (idx = @selected_index) && idx < @elements.size
