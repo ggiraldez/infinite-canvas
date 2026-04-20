@@ -114,6 +114,7 @@ class Canvas
               width: sb.width, height: sb.height,
             )
           end
+          refresh_drag_preview(@selected_ids)
         elsif (idx = @selected_index) && (sm = @drag_start_mouse) && (sb = @drag_start_bounds)
           dx = mouse_world.x - sm.x
           dy = mouse_world.y - sm.y
@@ -123,6 +124,7 @@ class Canvas
             x: new_x, y: new_y,
             width: sb.width, height: sb.height,
           )
+          refresh_drag_preview([@elements[idx].id])
         end
       when DragMode::Resizing
         if (idx = @selected_index) && (h = @active_handle) && (sm = @drag_start_mouse) && (sb = @drag_start_bounds)
@@ -136,6 +138,7 @@ class Canvas
             el.fixed_width = true
             refresh_element_layout(el)
           end
+          refresh_drag_preview([el.id])
         end
       end
 

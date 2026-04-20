@@ -292,6 +292,49 @@ class Canvas
     end
   end
 
+  # Updates @render_data for the given moved/resized elements and re-routes any
+  # arrows connected to them — called every drag frame so the canvas shows a live
+  # preview without touching @model or emitting events.
+  private def refresh_drag_preview(moved_ids : Array(UUID)) : Nil
+    moved_set = moved_ids.to_set
+
+    # Build a bounds-overrides table from all live non-arrow element positions.
+    overrides = {} of UUID => BoundsData
+    @elements.each do |el|
+      next if el.is_a?(ArrowElement)
+      b = el.bounds
+      overrides[el.id] = BoundsData.new(b.x, b.y, b.width, b.height)
+    end
+
+    # Patch render data for the moved non-arrow elements.
+    moved_ids.each do |id|
+      rd = @render_data[id]?
+      next unless rd
+      bd = overrides[id]? || next
+      @render_data[id] = case rd
+        when RectRenderData
+          RectRenderData.new(bd, rd.label_lines)
+        when TextRenderData
+          # Use the element's cached layout (kept current by refresh_element_layout
+          # during resize, or unchanged during move).
+          tel = @elements.find { |e| e.id == id }.as?(TextElement)
+          TextRenderData.new(bd,
+            tel.try(&.cached_line_runs) || rd.line_runs,
+            tel ? tel.cached_wraps : rd.wraps)
+        else rd
+        end
+    end
+
+    # Re-route arrows whose endpoints include a moved element.
+    @model.elements.each do |m|
+      next unless m.is_a?(ArrowModel)
+      next unless moved_set.includes?(m.from_id) || moved_set.includes?(m.to_id)
+      @render_data[m.id] = @layout_engine.layout_arrow_preview(@model, m, overrides)
+    end
+
+    inject_arrow_waypoints
+  end
+
   # Re-runs layout for a single TextElement using its current live state
   # (text/bounds may differ from the model during an active text session).
   # max_auto_width is derived from the current camera zoom so wrapping adapts

@@ -34,6 +34,13 @@ class LayoutEngine
     rd
   end
 
+  # Re-layout a single arrow using live element bounds from *overrides* in place of
+  # model bounds. Used for per-frame drag preview without mutating the model.
+  def layout_arrow_preview(model : CanvasModel, m : ArrowModel,
+                            overrides : Hash(UUID, BoundsData)) : ArrowRenderData
+    layout_arrow(model, m, overrides)
+  end
+
   private def layout_text(m : TextModel) : TextRenderData
     font_size = TEXT_FONT_SIZE
     padding   = TEXT_PADDING
@@ -86,7 +93,8 @@ class LayoutEngine
     RectRenderData.new(m.bounds, label_lines)
   end
 
-  private def layout_arrow(model : CanvasModel, m : ArrowModel) : ArrowRenderData
+  private def layout_arrow(model : CanvasModel, m : ArrowModel,
+                            overrides : Hash(UUID, BoundsData) = {} of UUID => BoundsData) : ArrowRenderData
     from_m = model.find_by_id(m.from_id)
     to_m   = model.find_by_id(m.to_id)
 
@@ -94,8 +102,8 @@ class LayoutEngine
       return ArrowRenderData.new([] of {Float32, Float32}, m.bounds)
     end
 
-    src = from_m.bounds
-    tgt = to_m.bounds
+    src = overrides[m.from_id]? || from_m.bounds
+    tgt = overrides[m.to_id]?   || to_m.bounds
 
     waypoints = if m.routing_style == "straight"
       ArrowGeometry.straight_route(src, tgt)
@@ -108,8 +116,8 @@ class LayoutEngine
       dy = ty - sy
 
       from_side, to_side = ArrowGeometry.natural_sides(src, tgt, dx, dy)
-      frac_src = arrow_side_fraction(model, m, m.from_id, true,  from_side, src)
-      frac_tgt = arrow_side_fraction(model, m, m.to_id,   false, to_side,   tgt)
+      frac_src = arrow_side_fraction(model, m, m.from_id, true,  from_side, src, overrides)
+      frac_tgt = arrow_side_fraction(model, m, m.to_id,   false, to_side,   tgt, overrides)
       ArrowGeometry.ortho_route(src, tgt, frac_src, frac_tgt, from_side, to_side)
     end
 
@@ -134,7 +142,8 @@ class LayoutEngine
   private def arrow_side_fraction(model : CanvasModel, arrow : ArrowModel,
                                     el_id : UUID, as_from : Bool,
                                     side : ArrowGeometry::Side,
-                                    el_bounds : BoundsData) : Float32
+                                    el_bounds : BoundsData,
+                                    overrides : Hash(UUID, BoundsData) = {} of UUID => BoundsData) : Float32
     siblings = [] of {UUID, Float32}
 
     model.elements.each do |e|
@@ -146,8 +155,8 @@ class LayoutEngine
       sib_to_m   = model.find_by_id(a.to_id)
       next unless sib_from_m && sib_to_m
 
-      sib_src = sib_from_m.bounds
-      sib_tgt = sib_to_m.bounds
+      sib_src = overrides[a.from_id]? || sib_from_m.bounds
+      sib_tgt = overrides[a.to_id]?   || sib_to_m.bounds
       sib_dx  = (sib_tgt.x + sib_tgt.w / 2.0_f32) - (sib_src.x + sib_src.w / 2.0_f32)
       sib_dy  = (sib_tgt.y + sib_tgt.h / 2.0_f32) - (sib_src.y + sib_src.h / 2.0_f32)
 
