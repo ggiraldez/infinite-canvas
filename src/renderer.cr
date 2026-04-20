@@ -122,7 +122,7 @@ class Renderer
 
   private def draw_text_cursor_wrapped(el : TextElement, rd : TextRenderData)
     if (range = el.selection_range)
-      el.visual_selection_ranges(range[0], range[1]).each do |vi, col_start, col_end|
+      text_selection_ranges(range[0], range[1], rd.line_runs).each do |vi, col_start, col_end|
         line_str = rd.line_runs.fetch(vi, {"", 0})[0]
         chars    = line_str.chars
         x1 = el.bounds.x + TextElement::PADDING + R.measure_text(chars[0, col_start].join, TextElement::FONT_SIZE)
@@ -135,7 +135,7 @@ class Renderer
     end
 
     return unless el.cursor_visible?
-    vi, x_px = el.cursor_visual_pos
+    vi, x_px = text_cursor_visual_pos(el.cursor_pos, rd.line_runs, TextElement::FONT_SIZE)
     cx = (el.bounds.x + TextElement::PADDING + x_px).to_i
     cy = (el.bounds.y + TextElement::PADDING + vi * TextElement::FONT_SIZE).to_i
     R.draw_text("|", cx, cy, TextElement::FONT_SIZE, TextElement::TEXT_COLOR)
@@ -145,6 +145,36 @@ class Renderer
     return if rd.waypoints.empty?
     pts = rd.waypoints.map { |p| R::Vector2.new(x: p[0], y: p[1]) }
     draw_segments(pts, ArrowElement::ARROW_COLOR, ArrowElement::ARROW_WIDTH)
+  end
+
+  # Maps cursor_pos (char offset) to {visual_line_index, x_pixel_offset}.
+  private def text_cursor_visual_pos(cursor_pos : Int32, line_runs : TextLayoutData, font_size : Int32) : {Int32, Int32}
+    return {0, 0} if line_runs.empty?
+    line_runs.each_with_index do |(line_str, line_start), vi|
+      next_start = vi + 1 < line_runs.size ? line_runs[vi + 1][1] : Int32::MAX
+      if cursor_pos >= line_start && cursor_pos < next_start
+        col  = [cursor_pos - line_start, line_str.chars.size].min
+        x_px = R.measure_text(line_str.chars[0...col].join, font_size)
+        return {vi, x_px}
+      end
+    end
+    last_line = line_runs.last[0]
+    {line_runs.size - 1, R.measure_text(last_line, font_size)}
+  end
+
+  # Returns {vi, col_start, col_end} for each visual line overlapping [sel_start, sel_end).
+  private def text_selection_ranges(sel_start : Int32, sel_end : Int32, line_runs : TextLayoutData) : Array({Int32, Int32, Int32})
+    result = [] of {Int32, Int32, Int32}
+    line_runs.each_with_index do |(line_str, line_start), vi|
+      line_chars = line_str.chars.size
+      line_end   = line_start + line_chars
+      if sel_start <= line_end && sel_end > line_start
+        col_start = [sel_start - line_start, 0].max
+        col_end   = [sel_end   - line_start, line_chars].min
+        result << {vi, col_start, col_end}
+      end
+    end
+    result
   end
 
   # Draws a polyline as shaft segments plus a filled arrowhead at the tip.

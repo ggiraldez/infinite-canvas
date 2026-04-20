@@ -158,7 +158,7 @@ module TextEditing
     delete_selection
     @preferred_x = nil
     reset_blink
-    fit_content
+
     text
   end
 
@@ -170,7 +170,7 @@ module TextEditing
     @cursor_pos += text.chars.size
     @preferred_x = nil
     reset_blink
-    fit_content
+
   end
 
   # True when the cursor glyph should be drawn this frame.

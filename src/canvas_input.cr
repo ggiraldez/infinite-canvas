@@ -335,9 +335,6 @@ class Canvas
       last_op = :cursor if last_op == :none
     end
 
-    if el.is_a?(TextElement)
-      el.max_auto_width = R.get_screen_width.to_f32 / (2.0_f32 * @camera.zoom)
-    end
     refresh_element_layout(el)
 
     return if last_op == :none
@@ -589,11 +586,36 @@ class Canvas
   private def hit_test_element(mouse_world : R::Vector2) : Int32?
     arrow_threshold = 6.0_f32 / @camera.zoom
     (@elements.size - 1).downto(0) do |i|
-      el = @elements[i]
-      hit = el.is_a?(ArrowElement) ? el.near_line?(mouse_world, arrow_threshold) : el.contains?(mouse_world)
+      el  = @elements[i]
+      hit = if el.is_a?(ArrowElement)
+        rd = @render_data[el.id]?
+        rd.is_a?(ArrowRenderData) && arrow_near_point?(rd.waypoints, mouse_world, arrow_threshold)
+      else
+        el.contains?(mouse_world)
+      end
       return i if hit
     end
     nil
+  end
+
+  private def arrow_near_point?(waypoints : Array({Float32, Float32}), p : R::Vector2, threshold : Float32) : Bool
+    (waypoints.size - 1).times.any? do |i|
+      a = R::Vector2.new(x: waypoints[i][0],     y: waypoints[i][1])
+      b = R::Vector2.new(x: waypoints[i + 1][0], y: waypoints[i + 1][1])
+      segment_dist(p, a, b) <= threshold
+    end
+  end
+
+  private def segment_dist(p : R::Vector2, a : R::Vector2, b : R::Vector2) : Float32
+    dx = b.x - a.x
+    dy = b.y - a.y
+    len_sq = dx * dx + dy * dy
+    if len_sq < 0.001_f32
+      return Math.sqrt((p.x - a.x)**2 + (p.y - a.y)**2).to_f32
+    end
+    t = ((p.x - a.x) * dx + (p.y - a.y) * dy) / len_sq
+    t = t.clamp(0.0_f32, 1.0_f32)
+    Math.sqrt((p.x - (a.x + t * dx))**2 + (p.y - (a.y + t * dy))**2).to_f32
   end
 
   # Returns which resize handle the mouse is over, or nil.

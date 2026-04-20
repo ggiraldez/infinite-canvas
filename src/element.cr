@@ -76,9 +76,6 @@ abstract class Element
     false
   end
 
-  # Expands bounds if content no longer fits after a text change.
-  def fit_content; end
-
 end
 
 require "./text_editing"

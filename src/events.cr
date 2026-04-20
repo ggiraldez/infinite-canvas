@@ -73,7 +73,7 @@ end
 
 class TextChangedEvent < CanvasEvent
   # Applies to both TextModel (text field) and RectModel (label field).
-  # new_bounds captures the post-fit_content size at emission time.
+  # new_bounds captures the post-layout size at emission time.
   property id : UUID
   property new_text : String
   property new_bounds : BoundsData

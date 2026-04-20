@@ -35,9 +35,4 @@ class RectElement < Element
     super(bounds, id)
     init_cursor
   end
-
-  def fit_content
-    # No-op: LayoutEngine owns sizing. Rect bounds are user-controlled.
-  end
-
 end

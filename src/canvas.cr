@@ -229,12 +229,10 @@ class Canvas
         ).as(Element)
       when TextModel
         b = m.bounds
-        el = TextElement.new(
+        TextElement.new(
           R::Rectangle.new(x: b.x, y: b.y, width: b.w, height: b.h),
           m.text, m.id, m.fixed_width
-        )
-        el.max_auto_width = m.max_auto_width
-        el.as(Element)
+        ).as(Element)
       when ArrowModel
         style = m.routing_style == "straight" ?
           ArrowElement::RoutingStyle::Straight :
@@ -280,9 +278,8 @@ class Canvas
     end
   end
 
-  # Injects layout engine output into each TextElement so visual_line_runs
-  # and wraps? return correct values without calling R.measure_text.
-  # Also updates element bounds so the Renderer can read them directly (Phase 3).
+  # Injects layout engine output into each TextElement (cached_line_runs,
+  # cached_wraps, bounds) so cursor navigation and the Renderer have current data.
   private def inject_text_element_cache : Nil
     @elements.each do |e|
       next unless e.is_a?(TextElement)
@@ -296,15 +293,17 @@ class Canvas
   end
 
   # Re-runs layout for a single TextElement using its current live state
-  # (text and bounds may differ from the model during an active text session).
-  # Injects the result back into the element so visual_line_runs stays current.
+  # (text/bounds may differ from the model during an active text session).
+  # max_auto_width is derived from the current camera zoom so wrapping adapts
+  # dynamically without storing it on the element.
   private def refresh_element_layout(el : Element) : Nil
     return unless el.is_a?(TextElement)
     m = @model.find_by_id(el.id)
     return unless m.is_a?(TextModel)
+    maw = R.get_screen_width.to_f32 / (2.0_f32 * @camera.zoom)
     tmp = TextModel.new(m.id,
       BoundsData.new(el.bounds.x, el.bounds.y, el.bounds.width, el.bounds.height),
-      el.text, el.fixed_width, el.max_auto_width)
+      el.text, el.fixed_width, maw)
     rd = @layout_engine.layout_text_element(tmp)
     el.cached_line_runs = rd.line_runs
     el.cached_wraps     = rd.wraps
@@ -373,10 +372,11 @@ class Canvas
           ColorData.new(e.fill), ColorData.new(e.stroke), e.stroke_width, e.label
         )
       when TextElement
-        b = e.bounds
+        b   = e.bounds
+        maw = @model.find_by_id(e.id).try { |m| m.is_a?(TextModel) ? m.max_auto_width : nil }
         model.elements << TextModel.new(
           e.id, BoundsData.new(b.x, b.y, b.width, b.height),
-          e.text, e.fixed_width, e.max_auto_width
+          e.text, e.fixed_width, maw
         )
       when ArrowElement
         model.elements << ArrowModel.new(
