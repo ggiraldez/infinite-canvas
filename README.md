@@ -152,13 +152,13 @@ ms, exponential moving average over ~10 frames) alongside the FPS counter.
 
 ### Viewport culling
 
-Every frame, non-arrow elements are culled against the visible world-space rectangle before drawing. The visible rect is computed from the `Camera2D` by projecting the screen corners to world space; any element whose bounding rect does not overlap is skipped entirely. Arrow elements are exempt from culling — their bounds are `(0,0,0,0)` at construction and only updated during `draw`, so they are always rendered (they are cheap line primitives).
+Every frame, all elements are culled against the visible world-space rectangle before drawing. The visible rect is computed from the `Camera2D` by projecting the screen corners to world space; any element whose bounding rect does not overlap is skipped entirely. Arrow bounding boxes are computed by `LayoutEngine` (as the axis-aligned envelope of the waypoint list) and stored in `ArrowRenderData`, so arrows are culled by the same path as other elements.
 
-### Word-wrap layout (`visual_line_runs`)
+### Word-wrap layout (`TextLayout.compute`)
 
 Laying out wrapped text requires knowing how wide any substring is. The naive approach — calling `MeasureText` on a growing prefix at each candidate break — is O(n²) in the number of characters per paragraph.
 
-`visual_line_runs` uses an O(n) prefix-sum to answer any substring-width query in O(1):
+`TextLayout.compute` (called by `LayoutEngine` once per event) uses an O(n) prefix-sum to answer any substring-width query in O(1):
 
 1. **Single-character measurements** — `MeasureText(c)` is called once per character in the paragraph and stored in `char_ws`. This is the only O(n) pass over Raylib.
 2. **Prefix-sum array** — `prefix[i]` holds the sum of `char_ws[0..i-1]`. The width of the substring `s[a..b]` (using Raylib's formula, which adds `spacing` between — not after — adjacent characters) is:
@@ -192,18 +192,21 @@ The net result is O(n) per paragraph (dominated by the single-char measurement p
 - `src/history.cr` — checkpoint-based undo/redo: event log + serialised checkpoint; `undo`/`redo` return a restored `CanvasModel` via replay
 - `src/view_state.cr` — `ElementViewState`: cursor/selection fields that live outside the model
 
-### Presentation
+### Layout and presentation
 
-- `src/layout.cr` — `TextLayout.compute` (O(n) word-wrap with prefix-sum + interpolation-seeded binary search); `ArrowLayout` geometric helpers (`natural_sides`, `exit_point_on_side`, `straight_route`, …)
-- `src/renderer.cr` — `Renderer`: all Raylib draw calls (`draw_element`, `draw_cursor`, `draw_arrow_highlighted`); reads model data from element objects, never mutates them
+- `src/layout_engine.cr` — `LayoutEngine`: single layout pass run after every model change; produces a `RenderData` hash keyed by element UUID; injected `Measurer` proc keeps Raylib out of the layout path
+- `src/render_data.cr` — `TextRenderData`, `RectRenderData`, `ArrowRenderData`; `Measurer` alias; `RenderData` hash type
+- `src/text_layout.cr` — `TextLayout.compute`: O(n) word-wrap with prefix-sum + interpolation-seeded binary search
+- `src/arrow_layout.cr` / `src/arrow_geometry.cr` — geometric helpers: `natural_sides`, `exit_point_on_side`, `straight_route`, `ortho_route`, …
+- `src/renderer.cr` — `Renderer`: pure Raylib draw calls (`draw_element`, `draw_cursor`, `draw_arrow_highlighted`); reads element view state and pre-computed `RenderData`; no `R.measure_text` calls for layout
 
-### Elements (data + behaviour, no draw methods)
+### Elements (view state + text-editing behaviour, no draw methods)
 
 - `src/element.cr` — `Element` abstract base class: bounds, id, text-editing stubs
 - `src/text_editing.cr` — `TextEditing` mixin: cursor, selection, word movement, clipboard, blink timing
-- `src/rect_element.cr` — `RectElement`: filled rectangle with centred multi-line label; `fit_content` / `min_size`
-- `src/text_element.cr` — `TextElement`: plain text node, auto-sized with optional word wrap; exposes `visual_line_runs`, `cursor_visual_pos`, `visual_selection_ranges` for the renderer
-- `src/arrow_element.cr` — `ArrowElement`: orthogonal/straight routing, endpoint spreading; `compute_path` resolves endpoints and returns waypoints
+- `src/rect_element.cr` — `RectElement`: filled rectangle with centred multi-line label; layout computed by `LayoutEngine`
+- `src/text_element.cr` — `TextElement`: plain text node with optional fixed width; holds cursor/selection state and `cached_line_runs` injected after each layout pass
+- `src/arrow_element.cr` — `ArrowElement`: connects two elements by UUID with orthogonal or straight routing; holds `cached_waypoints` injected after each layout pass
 
 ### Persistence
 
