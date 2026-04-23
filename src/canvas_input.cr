@@ -453,6 +453,32 @@ class Canvas
     end
   end
 
+  private def handle_escape
+    return unless R.key_pressed?(R::KeyboardKey::Escape)
+    if @drag_mode != DragMode::None
+      @drag_mode         = DragMode::None
+      @draw_start        = nil
+      @draw_current      = nil
+      @drag_start_mouse  = nil
+      @drag_start_bounds = nil
+      @active_handle     = nil
+      @multi_drag_starts = nil
+      @arrow_source_index = nil
+    elsif multi_selected?
+      commit_text_session_if_active
+      @selected_indices = [] of Int32
+      @selected_ids     = [] of UUID
+    elsif @selected_index
+      cleanup_empty_text_selection
+      select_element(nil)
+    end
+  end
+
+  private def handle_quit
+    ctrl = R.key_down?(R::KeyboardKey::LeftControl) || R.key_down?(R::KeyboardKey::RightControl)
+    @quit_requested = true if ctrl && R.key_pressed?(R::KeyboardKey::Q)
+  end
+
   private def handle_undo_redo
     ctrl = R.key_down?(R::KeyboardKey::LeftControl) || R.key_down?(R::KeyboardKey::RightControl)
     return unless ctrl

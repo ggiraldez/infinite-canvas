@@ -108,6 +108,12 @@ class Canvas
   # Arrow-connecting state: index of the source element while dragging a new arrow.
   @arrow_source_index : Int32? = nil
 
+  @quit_requested : Bool = false
+
+  def quit_requested? : Bool
+    @quit_requested
+  end
+
   def initialize(screen_width : Int32, screen_height : Int32)
     @model         = CanvasModel.new
     @history       = HistoryManager.new(@model)
@@ -154,8 +160,10 @@ class Canvas
     handle_zoom
     handle_left_mouse
     handle_text_input
+    handle_escape
     handle_delete
     handle_undo_redo
+    handle_quit
     handle_tool_switch
     handle_arrow_style_toggle
   end

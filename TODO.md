@@ -70,7 +70,7 @@
 
 26. **`smooth_draw_ms` initialises to 0.0** — the EMA takes ~20 frames (at α = 0.1) to converge, displaying an artificially low draw time on startup. Seed with the first real sample: `smooth_draw_ms = draw_ms` before entering the EMA update.
 
-27. **No `Escape` key to deselect** — clicking on empty space works, but `Escape` is the universal expectation for "cancel / deselect" in canvas apps.
+27. ~~**No `Escape` key to deselect**~~ — fixed: `Escape` deselects/cancels; `Ctrl+Q` quits.
 
 28. ~~**No undo / redo**~~ — resolved: full checkpoint-based undo/redo (`Ctrl+Z` / `Ctrl+Y` / `Ctrl+Shift+Z`). Structural events (create, delete, move, resize, arrow style) and text sessions each undo as one step. Per-word undo is active during text editing: consecutive characters coalesce into word groups, with boundaries at whitespace transitions, 1-second pauses, cursor movements, and paste/cut/delete operations.
 

@@ -12,6 +12,7 @@ module InfiniteCanvas
     R.set_config_flags(R::ConfigFlags::WindowResizable | R::ConfigFlags::MSAA4xHint)
     R.init_window(WINDOW_WIDTH, WINDOW_HEIGHT, TITLE)
     R.set_target_fps(60)
+    R.set_exit_key(R::KeyboardKey::Null)
 
     canvas = Canvas.new(WINDOW_WIDTH, WINDOW_HEIGHT)
     canvas.load
@@ -19,7 +20,7 @@ module InfiniteCanvas
     smooth_update_ms = 0.0_f64
     smooth_draw_ms   = 0.0_f64
 
-    until R.close_window?
+    until R.close_window? || canvas.quit_requested?
       # Keep the camera offset pinned to the window centre when resized so
       # zoom and pan behave consistently.
       canvas.camera.offset = R::Vector2.new(
