@@ -26,6 +26,13 @@ class RectElement < Element
     LABEL_FONT_SIZE
   end
 
+  def min_size : {Float32, Float32}
+    lines  = @label.split('\n')
+    max_w  = lines.map { |l| R.measure_text(l, LABEL_FONT_SIZE) }.max? || 0
+    total_h = lines.size * LABEL_FONT_SIZE
+    {(max_w + LABEL_PADDING_H * 2).to_f32, (total_h + LABEL_PADDING_V * 2).to_f32}
+  end
+
   def initialize(bounds : R::Rectangle,
                  @fill : R::Color = R::Color.new(r: 90, g: 140, b: 220, a: 200),
                  @stroke : R::Color = R::Color.new(r: 30, g: 60, b: 120, a: 255),

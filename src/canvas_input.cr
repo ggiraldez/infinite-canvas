@@ -38,6 +38,7 @@ class Canvas
         # Selection tool: hit-test handles → resize, elements → move, empty → deselect.
         if (handle = hit_test_handles(mouse_world))
           idx = @selected_index.not_nil!
+          commit_text_session_if_active
           @drag_mode = DragMode::Resizing
           @active_handle = handle
           @drag_start_mouse = mouse_world
@@ -45,6 +46,7 @@ class Canvas
         elsif (idx = hit_test_element(mouse_world))
           if in_multi_selection?(idx)
             # Clicked inside an existing multi-selection: begin moving all of them.
+            commit_text_session_if_active
             @drag_mode = DragMode::Moving
             @drag_start_mouse = mouse_world
             @multi_drag_starts = @selected_indices.map { |i| @elements[i].bounds }
@@ -56,11 +58,23 @@ class Canvas
               idx -= 1 if removed_at && idx > removed_at
               el = @elements[idx]
               already_selected = @selected_index == idx
+              was_editing = @text_session_id == el.id
+              commit_text_session_if_active if already_selected
               select_element(idx)
-              # Second click on an already-selected editable element: queue entering
-              # text editing mode on mouse release (only if no drag occurs).
-              if already_selected && @text_session_id.nil? && (el.is_a?(TextElement) || el.is_a?(RectElement))
-                @pending_enter_edit_id = el.id
+              case el
+              when TextElement
+                # Single click enters editing; clicking while editing exits it.
+                if was_editing
+                  @pending_exit_edit_id = el.id
+                else
+                  @pending_enter_edit_id = el.id
+                end
+              when RectElement
+                if was_editing
+                  @pending_exit_edit_id = el.id
+                elsif already_selected || hit_test_rect_label(el, mouse_world)
+                  @pending_enter_edit_id = el.id
+                end
               end
               @drag_mode = DragMode::Moving
               @drag_start_mouse = mouse_world
@@ -105,9 +119,10 @@ class Canvas
       when DragMode::Moving
         shift = R.key_down?(R::KeyboardKey::LeftShift) || R.key_down?(R::KeyboardKey::RightShift)
         # Cancel pending edit-on-click if the mouse has moved enough to be a drag.
-        if @pending_enter_edit_id && (sm = @drag_start_mouse)
+        if (@pending_enter_edit_id || @pending_exit_edit_id) && (sm = @drag_start_mouse)
           if (mouse_world.x - sm.x).abs > 2.0_f32 || (mouse_world.y - sm.y).abs > 2.0_f32
             @pending_enter_edit_id = nil
+            @pending_exit_edit_id  = nil
           end
         end
         if (starts = @multi_drag_starts) && (sm = @drag_start_mouse)
@@ -207,6 +222,7 @@ class Canvas
                         BoundsData.new(b.x, b.y, b.width, b.height), fill, stroke, 2.0_f32)
             emit(event)
             select_element(@elements.index { |e| e.id == rect_id })
+            @text_session_id = rect_id
             @active_tool = ActiveTool::Selection
 
           when ActiveTool::Text
@@ -245,11 +261,13 @@ class Canvas
           el = @elements[idx]
           b  = el.bounds
           emit(MoveElementEvent.new(el.id, BoundsData.new(b.x, b.y, b.width, b.height)))
-          # Enter editing mode if this was a click (no drag) on the selected element.
+          # Enter editing mode on a click (no drag); exit flag means session was
+          # already committed at press time so we just don't re-enter.
           if @pending_enter_edit_id == el.id
             @text_session_id = el.id if el.is_a?(TextElement) || el.is_a?(RectElement)
           end
           @pending_enter_edit_id = nil
+          @pending_exit_edit_id  = nil
         end
 
       when DragMode::Resizing
@@ -578,6 +596,7 @@ class Canvas
       @elements[old_idx].clear_selection if old_idx && old_idx < @elements.size
       @selected_index = new_idx
       @pending_enter_edit_id = nil
+      @pending_exit_edit_id  = nil
       if new_idx && (el = @elements[new_idx]?)
         @selected_id     = el.id
         @text_session_id = nil
@@ -640,6 +659,19 @@ class Canvas
   # Non-arrow elements use bounding-rect containment; arrows use a
   # zoom-aware line-proximity test so the click target stays constant in
   # screen pixels regardless of zoom level.
+  private def hit_test_rect_label(el : RectElement, mouse_world : R::Vector2) : Bool
+    rd = @render_data[el.id]?
+    return false unless rd.is_a?(RectRenderData)
+    lines = rd.label_lines
+    return false if lines.empty? || lines.all? { |(text, _)| text.empty? }
+    total_h = (lines.size * RectElement::LABEL_FONT_SIZE).to_f32
+    max_w   = lines.map { |(_, w)| w.to_f32 }.max
+    cx = el.bounds.x + el.bounds.width / 2.0_f32
+    cy = el.bounds.y + el.bounds.height / 2.0_f32
+    mouse_world.x >= cx - max_w / 2.0_f32 && mouse_world.x <= cx + max_w / 2.0_f32 &&
+      mouse_world.y >= cy - total_h / 2.0_f32 && mouse_world.y <= cy + total_h / 2.0_f32
+  end
+
   private def hit_test_element(mouse_world : R::Vector2) : Int32?
     arrow_threshold = 6.0_f32 / @camera.zoom
     (@elements.size - 1).downto(0) do |i|

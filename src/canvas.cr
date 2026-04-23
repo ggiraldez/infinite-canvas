@@ -108,9 +108,11 @@ class Canvas
   # Arrow-connecting state: index of the source element while dragging a new arrow.
   @arrow_source_index : Int32? = nil
 
-  # Set on press when clicking an already-selected editable element (not yet editing).
-  # If no drag occurs, the element enters text editing mode on mouse release.
+  # Set on press when a click should toggle text editing mode on release.
+  # @pending_enter_edit_id: enter editing if no drag occurs.
+  # @pending_exit_edit_id:  exit editing if no drag occurs (session already committed at press).
   @pending_enter_edit_id : UUID? = nil
+  @pending_exit_edit_id  : UUID? = nil
 
   @quit_requested : Bool = false
 
@@ -352,6 +354,20 @@ class Canvas
   # max_auto_width is derived from the current camera zoom so wrapping adapts
   # dynamically without storing it on the element.
   private def refresh_element_layout(el : Element) : Nil
+    if el.is_a?(RectElement)
+      label_lines = el.label.split('\n').map { |line|
+        {line, R.measure_text(line, RectElement::LABEL_FONT_SIZE)}
+      }
+      min_w, min_h = el.min_size
+      b = el.bounds
+      new_w = [b.width, min_w].max
+      new_h = [b.height, min_h].max
+      el.bounds = R::Rectangle.new(x: b.x, y: b.y, width: new_w, height: new_h)
+      b = el.bounds
+      @render_data[el.id] = RectRenderData.new(BoundsData.new(b.x, b.y, b.width, b.height), label_lines)
+      refresh_drag_preview([el.id])
+      return
+    end
     return unless el.is_a?(TextElement)
     m = @model.find_by_id(el.id)
     return unless m.is_a?(TextModel)
