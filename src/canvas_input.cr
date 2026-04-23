@@ -54,7 +54,14 @@ class Canvas
             removed_at = cleanup_empty_text_selection
             unless removed_at == idx
               idx -= 1 if removed_at && idx > removed_at
+              el = @elements[idx]
+              already_selected = @selected_index == idx
               select_element(idx)
+              # Second click on an already-selected editable element: queue entering
+              # text editing mode on mouse release (only if no drag occurs).
+              if already_selected && @text_session_id.nil? && (el.is_a?(TextElement) || el.is_a?(RectElement))
+                @pending_enter_edit_id = el.id
+              end
               @drag_mode = DragMode::Moving
               @drag_start_mouse = mouse_world
               @drag_start_bounds = @elements[idx].bounds
@@ -97,6 +104,12 @@ class Canvas
         @draw_current = mouse_world
       when DragMode::Moving
         shift = R.key_down?(R::KeyboardKey::LeftShift) || R.key_down?(R::KeyboardKey::RightShift)
+        # Cancel pending edit-on-click if the mouse has moved enough to be a drag.
+        if @pending_enter_edit_id && (sm = @drag_start_mouse)
+          if (mouse_world.x - sm.x).abs > 2.0_f32 || (mouse_world.y - sm.y).abs > 2.0_f32
+            @pending_enter_edit_id = nil
+          end
+        end
         if (starts = @multi_drag_starts) && (sm = @drag_start_mouse)
           dx = mouse_world.x - sm.x
           dy = mouse_world.y - sm.y
@@ -210,6 +223,7 @@ class Canvas
                                      tmp_rd.bounds.w, tmp_rd.bounds.h), "", false, maw)
             emit(event)
             select_element(@elements.index { |e| e.id == text_id })
+            @text_session_id = text_id
             @active_tool = ActiveTool::Selection
           end
         end
@@ -226,18 +240,16 @@ class Canvas
             {el.id, BoundsData.new(b.x, b.y, b.width, b.height)}
           end
           emit(MoveMultiEvent.new(moves))
-          # Restore text session if the moved element was being edited (unlikely but safe).
-          if (si = @selected_index) && (new_el = @elements[si]?)
-            @text_session_id = (new_el.is_a?(TextElement) || new_el.is_a?(RectElement)) ? new_el.id : nil
-          end
+          @pending_enter_edit_id = nil
         elsif (idx = @selected_index)
           el = @elements[idx]
           b  = el.bounds
           emit(MoveElementEvent.new(el.id, BoundsData.new(b.x, b.y, b.width, b.height)))
-          # Restore text session so the user can keep editing after dragging.
-          if (si = @selected_index) && (new_el = @elements[si]?)
-            @text_session_id = (new_el.is_a?(TextElement) || new_el.is_a?(RectElement)) ? new_el.id : nil
+          # Enter editing mode if this was a click (no drag) on the selected element.
+          if @pending_enter_edit_id == el.id
+            @text_session_id = el.id if el.is_a?(TextElement) || el.is_a?(RectElement)
           end
+          @pending_enter_edit_id = nil
         end
 
       when DragMode::Resizing
@@ -247,10 +259,6 @@ class Canvas
           el = @elements[idx]
           b  = el.bounds
           emit(ResizeElementEvent.new(el.id, BoundsData.new(b.x, b.y, b.width, b.height)))
-          # Restore text session so the user can keep editing after resizing.
-          if (si = @selected_index) && (new_el = @elements[si]?)
-            @text_session_id = (new_el.is_a?(TextElement) || new_el.is_a?(RectElement)) ? new_el.id : nil
-          end
         end
       end
 
@@ -264,6 +272,7 @@ class Canvas
 
   private def handle_text_input
     return unless (idx = @selected_index)
+    return unless @text_session_id
     el = @elements[idx]
     id = el.id
 
@@ -399,7 +408,23 @@ class Canvas
 
   private def handle_delete
     return unless R.key_pressed?(R::KeyboardKey::Delete) || R.key_pressed_repeat?(R::KeyboardKey::Delete)
-    if multi_selected?
+    if @text_session_id && (idx = @selected_index)
+      # In text editing mode: forward-delete (char to the right of the cursor).
+      el = @elements[idx]
+      case el
+      when TextElement, RectElement
+        text_before  = editing_text_for(el)
+        cursor_start = el.cursor_pos
+        el.handle_forward_delete
+        refresh_element_layout(el)
+        text_after = editing_text_for(el)
+        if text_before != text_after
+          b = el.bounds
+          flush_text_coalesce
+          emit_text_event(DeleteTextEvent.new(el.id, cursor_start, 1, BoundsData.new(b.x, b.y, b.width, b.height)))
+        end
+      end
+    elsif multi_selected?
       # Emit one DeleteElementEvent per selected element; apply() cascades arrow removal.
       events = @selected_indices.map { |i| DeleteElementEvent.new(@elements[i].id) }
       events.each { |ev| apply(@model, ev); @history.push(ev) }
@@ -464,6 +489,8 @@ class Canvas
       @active_handle     = nil
       @multi_drag_starts = nil
       @arrow_source_index = nil
+      cleanup_empty_text_selection
+      select_element(nil)
     elsif multi_selected?
       commit_text_session_if_active
       @selected_indices = [] of Int32
@@ -550,9 +577,10 @@ class Canvas
       commit_text_session_if_active
       @elements[old_idx].clear_selection if old_idx && old_idx < @elements.size
       @selected_index = new_idx
+      @pending_enter_edit_id = nil
       if new_idx && (el = @elements[new_idx]?)
         @selected_id     = el.id
-        @text_session_id = (el.is_a?(TextElement) || el.is_a?(RectElement)) ? el.id : nil
+        @text_session_id = nil
       else
         @selected_id     = nil
         @text_session_id = nil

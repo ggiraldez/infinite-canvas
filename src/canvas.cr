@@ -108,6 +108,10 @@ class Canvas
   # Arrow-connecting state: index of the source element while dragging a new arrow.
   @arrow_source_index : Int32? = nil
 
+  # Set on press when clicking an already-selected editable element (not yet editing).
+  # If no drag occurs, the element enters text editing mode on mouse release.
+  @pending_enter_edit_id : UUID? = nil
+
   @quit_requested : Bool = false
 
   def quit_requested? : Bool
@@ -360,6 +364,8 @@ class Canvas
     el.cached_wraps     = rd.wraps
     el.bounds = R::Rectangle.new(x: rd.bounds.x, y: rd.bounds.y,
                                   width: rd.bounds.w, height: rd.bounds.h)
+    @render_data[el.id] = rd
+    refresh_drag_preview([el.id])
   end
 
   # Flush any live text edits to the model as a TextChangedEvent.

@@ -66,9 +66,9 @@ class Canvas
       end
     end
 
-    # Blinking text cursor — drawn by renderer.
+    # Blinking text cursor — only shown in text editing mode.
     rd = @render_data[el.id]?
-    @renderer.draw_cursor(el, rd) if rd
+    @renderer.draw_cursor(el, rd) if rd && @text_session_id
   end
 
   private def rect_from_points(a : R::Vector2, b : R::Vector2) : R::Rectangle

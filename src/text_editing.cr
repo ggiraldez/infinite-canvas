@@ -54,6 +54,20 @@ module TextEditing
     reset_blink
   end
 
+  def handle_forward_delete
+    if delete_selection
+      @preferred_x = nil
+      reset_blink
+      return
+    end
+    chars = editing_text.chars
+    return if @cursor_pos >= chars.size
+    chars.delete_at(@cursor_pos)
+    self.editing_text = chars.join
+    @preferred_x = nil
+    reset_blink
+  end
+
   def handle_backspace_word
     if delete_selection
       @preferred_x = nil
