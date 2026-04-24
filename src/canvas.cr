@@ -108,13 +108,12 @@ class Canvas
   # Arrow-connecting state: index of the source element while dragging a new arrow.
   @arrow_source_index : Int32? = nil
 
-  # Set on press when a click should toggle text editing mode on release.
-  # @pending_enter_edit_id: enter editing if no drag occurs.
-  # @pending_exit_edit_id:  exit editing if no drag occurs (session already committed at press).
-  # @pending_cursor_mouse:  world-space click position to place the cursor at on release.
-  @pending_enter_edit_id : UUID?      = nil
-  @pending_exit_edit_id  : UUID?      = nil
-  @pending_cursor_mouse  : R::Vector2? = nil
+  # Set on press when a click (no drag) should enter text-editing mode on release.
+  # Cleared by drag detection so a drag never accidentally enters edit mode.
+  # Exit happens at press time via commit_text_session_if_active; re-entry is
+  # suppressed simply by leaving @pending_enter_edit false.
+  # The cursor is placed at @drag_start_mouse (the press position) on entry.
+  @pending_enter_edit : Bool = false
 
   @quit_requested : Bool = false
 
