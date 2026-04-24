@@ -63,17 +63,37 @@ class Canvas
               select_element(idx)
               case el
               when TextElement
-                # Single click enters editing; clicking while editing exits it.
                 if was_editing
-                  @pending_exit_edit_id = el.id
+                  # Padding strip (PADDING px at each edge) exits editing;
+                  # clicking inside the text area repositions the cursor.
+                  in_text_zone =
+                    mouse_world.x >= el.bounds.x + TextElement::PADDING &&
+                    mouse_world.x <= el.bounds.x + el.bounds.width - TextElement::PADDING &&
+                    mouse_world.y >= el.bounds.y + TextElement::PADDING &&
+                    mouse_world.y <= el.bounds.y + el.bounds.height - TextElement::PADDING
+                  if in_text_zone
+                    @pending_enter_edit_id = el.id
+                    @pending_cursor_mouse  = mouse_world
+                  else
+                    @pending_exit_edit_id = el.id
+                  end
                 else
                   @pending_enter_edit_id = el.id
+                  @pending_cursor_mouse  = mouse_world
                 end
               when RectElement
                 if was_editing
-                  @pending_exit_edit_id = el.id
+                  # Clicking on the label text repositions the cursor;
+                  # clicking outside the label (on the rect body/border) exits.
+                  if hit_test_rect_label(el, mouse_world)
+                    @pending_enter_edit_id = el.id
+                    @pending_cursor_mouse  = mouse_world
+                  else
+                    @pending_exit_edit_id = el.id
+                  end
                 elsif already_selected || hit_test_rect_label(el, mouse_world)
                   @pending_enter_edit_id = el.id
+                  @pending_cursor_mouse  = mouse_world
                 end
               end
               @drag_mode = DragMode::Moving
@@ -119,10 +139,11 @@ class Canvas
       when DragMode::Moving
         shift = R.key_down?(R::KeyboardKey::LeftShift) || R.key_down?(R::KeyboardKey::RightShift)
         # Cancel pending edit-on-click if the mouse has moved enough to be a drag.
-        if (@pending_enter_edit_id || @pending_exit_edit_id) && (sm = @drag_start_mouse)
+        if (@pending_enter_edit_id || @pending_exit_edit_id || @pending_cursor_mouse) && (sm = @drag_start_mouse)
           if (mouse_world.x - sm.x).abs > 2.0_f32 || (mouse_world.y - sm.y).abs > 2.0_f32
             @pending_enter_edit_id = nil
             @pending_exit_edit_id  = nil
+            @pending_cursor_mouse  = nil
           end
         end
         if (starts = @multi_drag_starts) && (sm = @drag_start_mouse)
@@ -261,13 +282,21 @@ class Canvas
           el = @elements[idx]
           b  = el.bounds
           emit(MoveElementEvent.new(el.id, BoundsData.new(b.x, b.y, b.width, b.height)))
-          # Enter editing mode on a click (no drag); exit flag means session was
-          # already committed at press time so we just don't re-enter.
           if @pending_enter_edit_id == el.id
-            @text_session_id = el.id if el.is_a?(TextElement) || el.is_a?(RectElement)
+            if el.is_a?(TextElement) || el.is_a?(RectElement)
+              @text_session_id = el.id
+              # Place cursor at the click position on the fresh element (rebuilt by emit).
+              if (pcm = @pending_cursor_mouse) && (new_idx = @selected_index) && (fresh = @elements[new_idx]?)
+                case fresh
+                when TextElement then fresh.place_cursor_at_world_pos(pcm)
+                when RectElement then fresh.place_cursor_at_world_pos(pcm)
+                end
+              end
+            end
           end
           @pending_enter_edit_id = nil
           @pending_exit_edit_id  = nil
+          @pending_cursor_mouse  = nil
         end
 
       when DragMode::Resizing

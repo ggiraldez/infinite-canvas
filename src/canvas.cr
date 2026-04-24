@@ -111,8 +111,10 @@ class Canvas
   # Set on press when a click should toggle text editing mode on release.
   # @pending_enter_edit_id: enter editing if no drag occurs.
   # @pending_exit_edit_id:  exit editing if no drag occurs (session already committed at press).
-  @pending_enter_edit_id : UUID? = nil
-  @pending_exit_edit_id  : UUID? = nil
+  # @pending_cursor_mouse:  world-space click position to place the cursor at on release.
+  @pending_enter_edit_id : UUID?      = nil
+  @pending_exit_edit_id  : UUID?      = nil
+  @pending_cursor_mouse  : R::Vector2? = nil
 
   @quit_requested : Bool = false
 

@@ -70,6 +70,20 @@ class TextElement < Element
     reset_blink
   end
 
+  # Moves the cursor to the character nearest to *mouse_world* (world space).
+  # Uses cached_line_runs so the visual-line layout matches the renderer exactly.
+  def place_cursor_at_world_pos(mouse_world : R::Vector2)
+    runs = @cached_line_runs
+    return if runs.nil? || runs.empty?
+    rel_y = mouse_world.y - bounds.y - PADDING
+    vi = (rel_y / FONT_SIZE).to_i.clamp(0, runs.size - 1)
+    line_str, line_start = runs[vi]
+    rel_x = (mouse_world.x - bounds.x - PADDING).to_i
+    @cursor_pos = line_start + nearest_col_for_x(line_str, rel_x)
+    @selection_anchor = nil
+    reset_blink
+  end
+
   # Maps @cursor_pos to {visual_line_index, x_pixel_offset_within_line}.
   # Private: used only for cursor-up/down navigation and by Renderer (which
   # has its own copy to avoid a public Raylib dependency on this class).

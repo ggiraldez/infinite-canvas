@@ -33,6 +33,24 @@ class RectElement < Element
     {(max_w + LABEL_PADDING_H * 2).to_f32, (total_h + LABEL_PADDING_V * 2).to_f32}
   end
 
+  # Moves the cursor to the label character nearest to *mouse_world* (world space).
+  def place_cursor_at_world_pos(mouse_world : R::Vector2)
+    lines = @label.split('\n')
+    return if lines.empty?
+    total_h = lines.size * LABEL_FONT_SIZE
+    start_y = bounds.y + (bounds.height - total_h) / 2.0_f32
+    vi = ((mouse_world.y - start_y) / LABEL_FONT_SIZE).to_i.clamp(0, lines.size - 1)
+    line = lines[vi]
+    line_w = R.measure_text(line, LABEL_FONT_SIZE)
+    line_x = bounds.x + (bounds.width - line_w) / 2.0_f32
+    rel_x = (mouse_world.x - line_x).to_i
+    col = nearest_col_for_x(line, rel_x)
+    prefix = (0...vi).sum { |i| lines[i].chars.size + 1 }
+    @cursor_pos = (prefix + col).clamp(0, @label.chars.size)
+    @selection_anchor = nil
+    reset_blink
+  end
+
   def initialize(bounds : R::Rectangle,
                  @fill : R::Color = R::Color.new(r: 90, g: 140, b: 220, a: 200),
                  @stroke : R::Color = R::Color.new(r: 30, g: 60, b: 120, a: 255),
