@@ -44,8 +44,15 @@ class Canvas
           @drag_start_mouse = mouse_world
           @drag_start_bounds = @elements[idx].bounds
         elsif (idx = hit_test_element(mouse_world))
-          if in_multi_selection?(idx)
-            # Clicked inside an existing multi-selection: begin moving all of them.
+          shift = R.key_down?(R::KeyboardKey::LeftShift) || R.key_down?(R::KeyboardKey::RightShift)
+          was_editing_clicked = @text_session_id == @elements[idx].id
+          if shift && !was_editing_clicked && !@elements[idx].is_a?(ArrowElement)
+            # Shift+click on a non-editing element: toggle it into/out of the selection.
+            removed_at = cleanup_empty_text_selection
+            idx -= 1 if removed_at && idx > removed_at
+            toggle_element_in_selection(idx)
+          elsif in_multi_selection?(idx)
+            # Clicked inside an existing multi-selection (no shift): begin moving all of them.
             commit_text_session_if_active
             @drag_mode = DragMode::Moving
             @drag_start_mouse = mouse_world
@@ -61,7 +68,6 @@ class Canvas
               was_editing = @text_session_id == el.id
               commit_text_session_if_active if already_selected
               select_element(idx)
-              shift = R.key_down?(R::KeyboardKey::LeftShift) || R.key_down?(R::KeyboardKey::RightShift)
               case el
               when TextElement
                 # If already editing, only the inner area (inside the PADDING
@@ -630,6 +636,32 @@ class Canvas
     @text_session_id = nil
     @selected_indices = indices
     @selected_ids     = indices.compact_map { |i| @elements[i]?.try(&.id) }
+  end
+
+  # Adds *click_idx* to the current selection, or removes it if already present.
+  # Promotes a single selection to multi-selection when a second element is added.
+  # Commits any active text session first.
+  private def toggle_element_in_selection(click_idx : Int32)
+    commit_text_session_if_active
+    current = if multi_selected?
+      @selected_indices.dup
+    elsif (si = @selected_index)
+      [si]
+    else
+      [] of Int32
+    end
+    if current.includes?(click_idx)
+      current.delete(click_idx)
+    else
+      current << click_idx
+    end
+    if current.empty?
+      select_element(nil)
+    elsif current.size == 1
+      select_element(current.first)
+    else
+      select_multi(current)
+    end
   end
 
   # Returns true when more than one element is selected.
