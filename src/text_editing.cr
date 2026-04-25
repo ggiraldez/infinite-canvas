@@ -150,6 +150,36 @@ module TextEditing
     reset_blink
   end
 
+  # Selects the word around the current cursor position.
+  # If *extend* is true, keeps the existing selection anchor and extends the
+  # cursor to whichever word boundary stretches the selection further.
+  def select_word_at_cursor(extend_sel : Bool = false)
+    chars = editing_text.chars
+    pos   = @cursor_pos.clamp(0, chars.size)
+
+    word_start = pos
+    while word_start > 0 && !chars[word_start - 1].whitespace?
+      word_start -= 1
+    end
+    word_end = pos
+    while word_end < chars.size && !chars[word_end].whitespace?
+      word_end += 1
+    end
+
+    return if word_start == word_end  # cursor is on whitespace
+
+    if extend_sel
+      anchor = @selection_anchor || @cursor_pos
+      @selection_anchor = anchor
+      @cursor_pos = anchor <= word_start ? word_end : word_start
+    else
+      @selection_anchor = word_start
+      @cursor_pos = word_end
+    end
+    @preferred_x = nil
+    reset_blink
+  end
+
   # Returns {min_pos, max_pos} when there is a non-empty selection, nil otherwise.
   def selection_range : {Int32, Int32}?
     return nil unless (anchor = @selection_anchor) && anchor != @cursor_pos
@@ -224,6 +254,15 @@ module TextEditing
       prev_x = curr_x
     end
     line.chars.size
+  end
+
+  # Directly sets anchor and cursor, e.g. for drag-selection logic that
+  # computes the exact span externally.
+  def set_selection(anchor : Int32, cursor : Int32)
+    @selection_anchor = anchor
+    @cursor_pos = cursor
+    @preferred_x = nil
+    reset_blink
   end
 
   # Sets @selection_anchor when shift is held; clears it otherwise.

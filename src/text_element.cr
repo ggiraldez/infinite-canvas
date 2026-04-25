@@ -72,6 +72,16 @@ class TextElement < Element
 
   # Moves the cursor to the character nearest to *mouse_world* (world space).
   # Uses cached_line_runs so the visual-line layout matches the renderer exactly.
+  def char_pos_at_world(world_pos : R::Vector2) : Int32
+    runs = @cached_line_runs
+    return 0 unless runs && !runs.empty?
+    rel_y = world_pos.y - bounds.y - PADDING
+    vi = (rel_y / FONT_SIZE).to_i.clamp(0, runs.size - 1)
+    line_str, line_start = runs[vi]
+    rel_x = (world_pos.x - bounds.x - PADDING).to_i
+    line_start + nearest_col_for_x(line_str, rel_x)
+  end
+
   def place_cursor_at_world_pos(mouse_world : R::Vector2, extend_selection : Bool = false)
     runs = @cached_line_runs
     return if runs.nil? || runs.empty?

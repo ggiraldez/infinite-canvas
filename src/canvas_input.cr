@@ -34,6 +34,14 @@ class Canvas
     mouse_world = R.get_screen_to_world_2d(R.get_mouse_position, @camera)
 
     if R.mouse_button_pressed?(R::MouseButton::Left)
+      now = R.get_time
+      mouse_screen = R.get_mouse_position
+      is_double_click = (now - @last_click_time) < DOUBLE_CLICK_TIME &&
+        (@last_click_screen.x - mouse_screen.x).abs < DOUBLE_CLICK_DIST &&
+        (@last_click_screen.y - mouse_screen.y).abs < DOUBLE_CLICK_DIST
+      @last_click_time   = now
+      @last_click_screen = mouse_screen
+
       if @active_tool.selection?
         # Selection tool: hit-test handles → resize, elements → move, empty → deselect.
         if (handle = hit_test_handles(mouse_world))
@@ -91,6 +99,22 @@ class Canvas
                 end
               end
               @pending_shift_click = shift && was_editing
+              @pending_double_click = is_double_click
+              @press_was_editing = was_editing
+              # For a double-click while already editing, apply the word selection
+              # immediately at press time so a drag can extend it right away.
+              if is_double_click && was_editing && @pending_enter_edit
+                @text_session_id = el.id
+                case el
+                when TextElement
+                  el.place_cursor_at_world_pos(mouse_world, extend_selection: @pending_shift_click)
+                  el.select_word_at_cursor(extend_sel: @pending_shift_click)
+                when RectElement
+                  el.place_cursor_at_world_pos(mouse_world, extend_selection: @pending_shift_click)
+                  el.select_word_at_cursor(extend_sel: @pending_shift_click)
+                end
+                @double_click_done_at_press = true
+              end
               @drag_mode = DragMode::Moving
               @drag_start_mouse = mouse_world
               @drag_start_bounds = @elements[idx].bounds
@@ -133,41 +157,94 @@ class Canvas
         @draw_current = mouse_world
       when DragMode::Moving
         shift = R.key_down?(R::KeyboardKey::LeftShift) || R.key_down?(R::KeyboardKey::RightShift)
-        # Cancel pending edit-on-click if the mouse has moved enough to be a drag.
+        # When drag threshold is crossed, either switch to text-selection drag (if
+        # the press was on an element being edited) or commit to an element move.
         if @pending_enter_edit && (sm = @drag_start_mouse)
           if (mouse_world.x - sm.x).abs > 2.0_f32 || (mouse_world.y - sm.y).abs > 2.0_f32
+            shift_at_press = @pending_shift_click
             @pending_enter_edit = false
             @pending_shift_click = false
+            @pending_double_click = false
+            if @press_was_editing && (idx = @selected_index)
+              el = @elements[idx]
+              if el.is_a?(TextElement) || el.is_a?(RectElement)
+                @text_session_id = el.id
+                if @double_click_done_at_press
+                  # Word was selected at press; store its bounds so the drag
+                  # handler can keep it fully included on every frame.
+                  if (range = el.selection_range)
+                    @text_select_word_start = range[0]
+                    @text_select_word_end   = range[1]
+                  end
+                else
+                  @text_select_word_start = nil
+                  @text_select_word_end   = nil
+                  case el
+                  when TextElement then el.place_cursor_at_world_pos(sm, extend_selection: shift_at_press)
+                  when RectElement then el.place_cursor_at_world_pos(sm, extend_selection: shift_at_press)
+                  end
+                end
+                @drag_mode = DragMode::TextSelecting
+              end
+            end
+            @press_was_editing = false
+            @double_click_done_at_press = false
           end
         end
-        if (starts = @multi_drag_starts) && (sm = @drag_start_mouse)
-          dx = mouse_world.x - sm.x
-          dy = mouse_world.y - sm.y
-          if shift && !starts.empty? && !@pending_enter_edit
-            # Snap by anchoring the first element's corner to the snap grid and
-            # applying the same offset to all others, preserving relative positions.
-            anchor = starts[0]
-            dx = snap_to_grid(anchor.x + dx) - anchor.x
-            dy = snap_to_grid(anchor.y + dy) - anchor.y
-          end
-          @selected_indices.each_with_index do |el_idx, i|
-            sb = starts[i]
-            @elements[el_idx].bounds = R::Rectangle.new(
-              x: sb.x + dx, y: sb.y + dy,
+        if @drag_mode.moving? && !@pending_enter_edit
+          if (starts = @multi_drag_starts) && (sm = @drag_start_mouse)
+            dx = mouse_world.x - sm.x
+            dy = mouse_world.y - sm.y
+            if shift && !starts.empty? && !@pending_enter_edit
+              # Snap by anchoring the first element's corner to the snap grid and
+              # applying the same offset to all others, preserving relative positions.
+              anchor = starts[0]
+              dx = snap_to_grid(anchor.x + dx) - anchor.x
+              dy = snap_to_grid(anchor.y + dy) - anchor.y
+            end
+            @selected_indices.each_with_index do |el_idx, i|
+              sb = starts[i]
+              @elements[el_idx].bounds = R::Rectangle.new(
+                x: sb.x + dx, y: sb.y + dy,
+                width: sb.width, height: sb.height,
+              )
+            end
+            refresh_drag_preview(@selected_ids)
+          elsif (idx = @selected_index) && (sm = @drag_start_mouse) && (sb = @drag_start_bounds)
+            dx = mouse_world.x - sm.x
+            dy = mouse_world.y - sm.y
+            new_x = shift && !@pending_enter_edit ? snap_to_grid(sb.x + dx) : sb.x + dx
+            new_y = shift && !@pending_enter_edit ? snap_to_grid(sb.y + dy) : sb.y + dy
+            @elements[idx].bounds = R::Rectangle.new(
+              x: new_x, y: new_y,
               width: sb.width, height: sb.height,
             )
+            refresh_drag_preview([@elements[idx].id])
           end
-          refresh_drag_preview(@selected_ids)
-        elsif (idx = @selected_index) && (sm = @drag_start_mouse) && (sb = @drag_start_bounds)
-          dx = mouse_world.x - sm.x
-          dy = mouse_world.y - sm.y
-          new_x = shift && !@pending_enter_edit ? snap_to_grid(sb.x + dx) : sb.x + dx
-          new_y = shift && !@pending_enter_edit ? snap_to_grid(sb.y + dy) : sb.y + dy
-          @elements[idx].bounds = R::Rectangle.new(
-            x: new_x, y: new_y,
-            width: sb.width, height: sb.height,
-          )
-          refresh_drag_preview([@elements[idx].id])
+        end
+      when DragMode::TextSelecting
+        if (idx = @selected_index) && @text_session_id
+          el = @elements[idx]
+          case el
+          when TextElement, RectElement
+            ws = @text_select_word_start
+            we = @text_select_word_end
+            if ws && we
+              # Double-click drag: keep the original word fully selected while
+              # extending toward the pointer.
+              target = el.char_pos_at_world(mouse_world)
+              if target <= ws
+                el.set_selection(anchor: we, cursor: target)
+              elsif target >= we
+                el.set_selection(anchor: ws, cursor: target)
+              else
+                el.set_selection(anchor: ws, cursor: we)
+              end
+            else
+              el.place_cursor_at_world_pos(mouse_world, extend_selection: true)
+            end
+            refresh_element_layout(el)
+          end
         end
       when DragMode::Resizing
         if (idx = @selected_index) && (h = @active_handle) && (sm = @drag_start_mouse) && (sb = @drag_start_bounds)
@@ -273,14 +350,22 @@ class Canvas
           emit(MoveMultiEvent.new(moves))
           @pending_enter_edit = false
           @pending_shift_click = false
+          @pending_double_click = false
+          @double_click_done_at_press = false
         elsif (idx = @selected_index)
           el = @elements[idx]
           if @pending_enter_edit && (el.is_a?(TextElement) || el.is_a?(RectElement))
             @text_session_id = el.id
-            if (press_pos = @drag_start_mouse)
-              case el
-              when TextElement then el.place_cursor_at_world_pos(press_pos, extend_selection: @pending_shift_click)
-              when RectElement then el.place_cursor_at_world_pos(press_pos, extend_selection: @pending_shift_click)
+            unless @double_click_done_at_press
+              if (press_pos = @drag_start_mouse)
+                case el
+                when TextElement
+                  el.place_cursor_at_world_pos(press_pos, extend_selection: @pending_shift_click)
+                  el.select_word_at_cursor(extend_sel: @pending_shift_click) if @pending_double_click
+                when RectElement
+                  el.place_cursor_at_world_pos(press_pos, extend_selection: @pending_shift_click)
+                  el.select_word_at_cursor(extend_sel: @pending_shift_click) if @pending_double_click
+                end
               end
             end
           else
@@ -289,7 +374,14 @@ class Canvas
           end
           @pending_enter_edit = false
           @pending_shift_click = false
+          @pending_double_click = false
+          @double_click_done_at_press = false
         end
+
+      when DragMode::TextSelecting
+        # Text selection drag complete; session stays active, nothing to commit.
+        @text_select_word_start = nil
+        @text_select_word_end   = nil
 
       when DragMode::Resizing
         # Commit text session first (resize triggers a sync that would drop live text).
@@ -310,6 +402,7 @@ class Canvas
   end
 
   private def handle_text_input
+    return if @drag_mode.text_selecting?
     return unless (idx = @selected_index)
     return unless @text_session_id
     el = @elements[idx]
@@ -446,6 +539,7 @@ class Canvas
   end
 
   private def handle_delete
+    return if @drag_mode.text_selecting?
     return unless R.key_pressed?(R::KeyboardKey::Delete) || R.key_pressed_repeat?(R::KeyboardKey::Delete)
     if @text_session_id && (idx = @selected_index)
       # In text editing mode: forward-delete (char to the right of the cursor).

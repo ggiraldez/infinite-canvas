@@ -39,8 +39,9 @@ class Canvas
     Drawing
     Moving
     Resizing
-    Connecting  # Arrow tool: dragging from a source element to a target element
-    Selecting   # Selection tool: rubber-band drag over empty space
+    Connecting    # Arrow tool: dragging from a source element to a target element
+    Selecting     # Selection tool: rubber-band drag over empty space
+    TextSelecting # Drag inside an active text session to extend the selection
   end
 
   enum Handle
@@ -115,6 +116,20 @@ class Canvas
   # The cursor is placed at @drag_start_mouse (the press position) on entry.
   @pending_enter_edit : Bool = false
   @pending_shift_click : Bool = false
+  @pending_double_click : Bool = false
+  @press_was_editing : Bool = false
+  @double_click_done_at_press : Bool = false
+  # When a TextSelecting drag was started by a double-click, these hold the
+  # char boundaries of the originally selected word so the drag logic can
+  # always ensure that word stays fully included in the selection.
+  @text_select_word_start : Int32? = nil
+  @text_select_word_end   : Int32? = nil
+
+  # Double-click detection state.
+  DOUBLE_CLICK_TIME = 0.4_f64   # seconds
+  DOUBLE_CLICK_DIST = 5.0_f32   # screen pixels
+  @last_click_time   : Float64    = 0.0
+  @last_click_screen : R::Vector2 = R::Vector2.new(x: -999.0_f32, y: -999.0_f32)
 
   @quit_requested : Bool = false
 
