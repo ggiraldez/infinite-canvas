@@ -114,6 +114,7 @@ class Canvas
   # suppressed simply by leaving @pending_enter_edit false.
   # The cursor is placed at @drag_start_mouse (the press position) on entry.
   @pending_enter_edit : Bool = false
+  @pending_shift_click : Bool = false
 
   @quit_requested : Bool = false
 

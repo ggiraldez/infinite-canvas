@@ -61,11 +61,13 @@ class Canvas
               was_editing = @text_session_id == el.id
               commit_text_session_if_active if already_selected
               select_element(idx)
+              shift = R.key_down?(R::KeyboardKey::LeftShift) || R.key_down?(R::KeyboardKey::RightShift)
               case el
               when TextElement
                 # If already editing, only the inner area (inside the PADDING
-                # strip) re-enters; clicking the border exits. Otherwise always enter.
-                @pending_enter_edit = !was_editing ||
+                # strip) re-enters; clicking the border exits. Shift-click always
+                # re-enters so the selection can be extended.
+                @pending_enter_edit = !was_editing || shift ||
                   (mouse_world.x >= el.bounds.x + TextElement::PADDING &&
                    mouse_world.x <= el.bounds.x + el.bounds.width - TextElement::PADDING &&
                    mouse_world.y >= el.bounds.y + TextElement::PADDING &&
@@ -74,13 +76,15 @@ class Canvas
                 if was_editing
                   # Clicking on the label text repositions the cursor;
                   # clicking outside the label (on the rect body/border) exits.
-                  if hit_test_rect_label(el, mouse_world)
+                  # Shift-click always re-enters so the selection can be extended.
+                  if hit_test_rect_label(el, mouse_world) || shift
                     @pending_enter_edit = true
                   end
                 elsif already_selected || hit_test_rect_label(el, mouse_world)
                   @pending_enter_edit = true
                 end
               end
+              @pending_shift_click = shift && was_editing
               @drag_mode = DragMode::Moving
               @drag_start_mouse = mouse_world
               @drag_start_bounds = @elements[idx].bounds
@@ -127,12 +131,13 @@ class Canvas
         if @pending_enter_edit && (sm = @drag_start_mouse)
           if (mouse_world.x - sm.x).abs > 2.0_f32 || (mouse_world.y - sm.y).abs > 2.0_f32
             @pending_enter_edit = false
+            @pending_shift_click = false
           end
         end
         if (starts = @multi_drag_starts) && (sm = @drag_start_mouse)
           dx = mouse_world.x - sm.x
           dy = mouse_world.y - sm.y
-          if shift && !starts.empty?
+          if shift && !starts.empty? && !@pending_enter_edit
             # Snap by anchoring the first element's corner to the snap grid and
             # applying the same offset to all others, preserving relative positions.
             anchor = starts[0]
@@ -150,8 +155,8 @@ class Canvas
         elsif (idx = @selected_index) && (sm = @drag_start_mouse) && (sb = @drag_start_bounds)
           dx = mouse_world.x - sm.x
           dy = mouse_world.y - sm.y
-          new_x = shift ? snap_to_grid(sb.x + dx) : sb.x + dx
-          new_y = shift ? snap_to_grid(sb.y + dy) : sb.y + dy
+          new_x = shift && !@pending_enter_edit ? snap_to_grid(sb.x + dx) : sb.x + dx
+          new_y = shift && !@pending_enter_edit ? snap_to_grid(sb.y + dy) : sb.y + dy
           @elements[idx].bounds = R::Rectangle.new(
             x: new_x, y: new_y,
             width: sb.width, height: sb.height,
@@ -261,14 +266,15 @@ class Canvas
           end
           emit(MoveMultiEvent.new(moves))
           @pending_enter_edit = false
+          @pending_shift_click = false
         elsif (idx = @selected_index)
           el = @elements[idx]
           if @pending_enter_edit && (el.is_a?(TextElement) || el.is_a?(RectElement))
             @text_session_id = el.id
             if (press_pos = @drag_start_mouse)
               case el
-              when TextElement then el.place_cursor_at_world_pos(press_pos)
-              when RectElement then el.place_cursor_at_world_pos(press_pos)
+              when TextElement then el.place_cursor_at_world_pos(press_pos, extend_selection: @pending_shift_click)
+              when RectElement then el.place_cursor_at_world_pos(press_pos, extend_selection: @pending_shift_click)
               end
             end
           else
@@ -276,6 +282,7 @@ class Canvas
             emit(MoveElementEvent.new(el.id, BoundsData.new(b.x, b.y, b.width, b.height)))
           end
           @pending_enter_edit = false
+          @pending_shift_click = false
         end
 
       when DragMode::Resizing

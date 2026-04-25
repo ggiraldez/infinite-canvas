@@ -34,7 +34,7 @@ class RectElement < Element
   end
 
   # Moves the cursor to the label character nearest to *mouse_world* (world space).
-  def place_cursor_at_world_pos(mouse_world : R::Vector2)
+  def place_cursor_at_world_pos(mouse_world : R::Vector2, extend_selection : Bool = false)
     lines = @label.split('\n')
     return if lines.empty?
     total_h = lines.size * LABEL_FONT_SIZE
@@ -46,8 +46,8 @@ class RectElement < Element
     rel_x = (mouse_world.x - line_x).to_i
     col = nearest_col_for_x(line, rel_x)
     prefix = (0...vi).sum { |i| lines[i].chars.size + 1 }
+    anchor_for_shift(extend_selection)
     @cursor_pos = (prefix + col).clamp(0, @label.chars.size)
-    @selection_anchor = nil
     reset_blink
   end
 
