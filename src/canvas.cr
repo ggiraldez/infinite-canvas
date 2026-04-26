@@ -34,21 +34,11 @@ class Canvas
     .map { |i| 2.0_f32 ** (i.to_f32 * 0.25_f32) }
     .select { |z| z >= 0.1_f32 && z <= 10.0_f32 }
 
-  enum DragMode
-    None
-    Drawing
-    Moving
-    Resizing
-    Connecting    # Arrow tool: dragging from a source element to a target element
-    Selecting     # Selection tool: rubber-band drag over empty space
-    TextSelecting # Drag inside an active text session to extend the selection
-  end
-
   enum Handle
     NW; N; NE; E; SE; S; SW; W
   end
 
-  enum ActiveTool
+  enum CursorTool
     Selection
     Rect
     Text
@@ -57,7 +47,21 @@ class Canvas
 
   getter elements : Array(Element)
   getter camera : R::Camera2D
-  property active_tool : ActiveTool = ActiveTool::Selection
+  getter selected_index : Int32?
+  getter selected_indices : Array(Int32)
+  getter selected_id : UUID?
+  getter selected_ids : Array(UUID)
+  getter text_session_id : UUID?
+  getter render_data : RenderData
+  getter layout_engine : LayoutEngine
+
+  def text_session_id=(v : UUID?)
+    @text_session_id = v
+  end
+
+  def cursor_tool : CursorTool
+    @mode.cursor_tool || CursorTool::Selection
+  end
 
   def selected_element : Element?
     (idx = @selected_index) ? @elements[idx]? : nil
@@ -66,10 +70,8 @@ class Canvas
   @renderer      : Renderer = Renderer.new
   @layout_engine : LayoutEngine
   @render_data   : RenderData
-  @drag_mode : DragMode = DragMode::None
-  @selected_index : Int32? = nil
 
-  # Multi-selection: indices of all selected elements (non-empty only when > 1 selected).
+  @selected_index   : Int32? = nil
   @selected_indices : Array(Int32) = [] of Int32
 
   # ── Event-sourcing state ──────────────────────────────────────────────────
@@ -94,37 +96,6 @@ class Canvas
   @text_coalesce_bounds : BoundsData = BoundsData.new(0.0_f32, 0.0_f32, 0.0_f32, 0.0_f32)
   @text_coalesce_time   : Float64   = 0.0
 
-  # Drawing state
-  @draw_start : R::Vector2?
-  @draw_current : R::Vector2?
-
-  # Move / resize state
-  @drag_start_mouse : R::Vector2?
-  @drag_start_bounds : R::Rectangle?
-  @active_handle : Handle?
-
-  # Starting bounds for all elements during a multi-element move.
-  @multi_drag_starts : Array(R::Rectangle)?
-
-  # Arrow-connecting state: index of the source element while dragging a new arrow.
-  @arrow_source_index : Int32? = nil
-
-  # Set on press when a click (no drag) should enter text-editing mode on release.
-  # Cleared by drag detection so a drag never accidentally enters edit mode.
-  # Exit happens at press time via commit_text_session_if_active; re-entry is
-  # suppressed simply by leaving @pending_enter_edit false.
-  # The cursor is placed at @drag_start_mouse (the press position) on entry.
-  @pending_enter_edit : Bool = false
-  @pending_shift_click : Bool = false
-  @pending_double_click : Bool = false
-  @press_was_editing : Bool = false
-  @double_click_done_at_press : Bool = false
-  # When a TextSelecting drag was started by a double-click, these hold the
-  # char boundaries of the originally selected word so the drag logic can
-  # always ensure that word stays fully included in the selection.
-  @text_select_word_start : Int32? = nil
-  @text_select_word_end   : Int32? = nil
-
   # Double-click detection state.
   DOUBLE_CLICK_TIME = 0.4_f64   # seconds
   DOUBLE_CLICK_DIST = 5.0_f32   # screen pixels
@@ -132,6 +103,9 @@ class Canvas
   @last_click_screen : R::Vector2 = R::Vector2.new(x: -999.0_f32, y: -999.0_f32)
 
   @quit_requested : Bool = false
+
+  # Active input mode — owns all drag/interaction state.
+  @mode : InputMode
 
   def quit_requested? : Bool
     @quit_requested
@@ -149,6 +123,7 @@ class Canvas
       rotation: 0.0_f32,
       zoom: 1.0_f32,
     )
+    @mode = IdleMode.new(CursorTool::Selection)
   end
 
   def save
@@ -241,7 +216,7 @@ class Canvas
   # Apply an event to the model, record it in history, and rebuild @elements.
   # Do NOT call this during an active text session — use commit_text_session_if_active
   # first so the live text is persisted before the sync overwrites the element.
-  private def emit(event : CanvasEvent) : Nil
+  def emit(event : CanvasEvent) : Nil
     apply(@model, event)
     @history.push(event)
     sync_elements_from_model
@@ -326,7 +301,7 @@ class Canvas
   # Updates @render_data for the given moved/resized elements and re-routes any
   # arrows connected to them — called every drag frame so the canvas shows a live
   # preview without touching @model or emitting events.
-  private def refresh_drag_preview(moved_ids : Array(UUID)) : Nil
+  def refresh_drag_preview(moved_ids : Array(UUID)) : Nil
     moved_set = moved_ids.to_set
 
     # Build a bounds-overrides table from all live non-arrow element positions.
@@ -370,7 +345,7 @@ class Canvas
   # (text/bounds may differ from the model during an active text session).
   # max_auto_width is derived from the current camera zoom so wrapping adapts
   # dynamically without storing it on the element.
-  private def refresh_element_layout(el : Element) : Nil
+  def refresh_element_layout(el : Element) : Nil
     if el.is_a?(RectElement)
       label_lines = el.label.split('\n').map { |line|
         {line, R.measure_text(line, RectElement::LABEL_FONT_SIZE)}
@@ -406,7 +381,7 @@ class Canvas
   # overwrite the element with the stale model text).
   # Does NOT call sync — the caller's emit will do that.
   # No-op when text is identical to the model (avoids spurious history entries).
-  private def commit_text_session_if_active : Nil
+  def commit_text_session_if_active : Nil
     flush_text_coalesce          # emit any buffered chars before comparing to model
     return unless (tid = @text_session_id)
     @text_session_id = nil  # clear first so re-entrant calls are safe
@@ -478,5 +453,15 @@ class Canvas
   end
 end
 
+require "./input_modes/input_mode"
+require "./input_modes/idle_mode"
+require "./input_modes/pressing_on_element_mode"
+require "./input_modes/moving_elements_mode"
+require "./input_modes/resizing_element_mode"
+require "./input_modes/rubber_band_select_mode"
+require "./input_modes/drawing_shape_mode"
+require "./input_modes/connecting_arrow_mode"
+require "./input_modes/text_editing_mode"
+require "./input_modes/text_selecting_mode"
 require "./canvas_input"
 require "./canvas_drawing"

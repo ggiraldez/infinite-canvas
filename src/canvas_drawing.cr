@@ -1,16 +1,15 @@
 class Canvas
   private def draw_draft
-    return unless (start = @draw_start) && (current = @draw_current)
-    if @drag_mode.connecting?
-      # Arrow preview: dashed line from source center to current mouse position.
-      R.draw_line_ex(start, current, 2.0_f32 / @camera.zoom, DRAFT_STROKE)
-    elsif @drag_mode.selecting?
-      # Rubber-band selection rect.
-      rect = rect_from_points(start, current)
-      R.draw_rectangle_rec(rect, SEL_DRAG_FILL)
-      R.draw_rectangle_lines_ex(rect, 1.5_f32 / @camera.zoom, SEL_COLOR)
-    else
-      rect = rect_from_points(start, current)
+    if (line = @mode.draft_arrow_line)
+      R.draw_line_ex(line[0], line[1], 2.0_f32 / @camera.zoom, DRAFT_STROKE)
+    elsif @mode.rubber_band_select?
+      if (pair = @mode.draft_rect)
+        rect = rect_from_points(pair[0], pair[1])
+        R.draw_rectangle_rec(rect, SEL_DRAG_FILL)
+        R.draw_rectangle_lines_ex(rect, 1.5_f32 / @camera.zoom, SEL_COLOR)
+      end
+    elsif (pair = @mode.draft_rect)
+      rect = rect_from_points(pair[0], pair[1])
       R.draw_rectangle_rec(rect, DRAFT_FILL)
       R.draw_rectangle_lines_ex(rect, 2.0_f32 / @camera.zoom, DRAFT_STROKE)
     end
@@ -69,14 +68,6 @@ class Canvas
     # Blinking text cursor — only shown in text editing mode.
     rd = @render_data[el.id]?
     @renderer.draw_cursor(el, rd) if rd && @text_session_id
-  end
-
-  private def rect_from_points(a : R::Vector2, b : R::Vector2) : R::Rectangle
-    x = Math.min(a.x, b.x)
-    y = Math.min(a.y, b.y)
-    w = (a.x - b.x).abs
-    h = (a.y - b.y).abs
-    R::Rectangle.new(x: x, y: y, width: w, height: h)
   end
 
   private def draw_grid
