@@ -49,17 +49,24 @@ class MovingElementsMode < InputMode
 
   def on_mouse_release(canvas : Canvas, mouse_world : R::Vector2) : InputMode
     canvas.commit_text_session_if_active
-    if @multi_drag_starts && canvas.selected_indices.size > 1
+    if (starts = @multi_drag_starts) && canvas.selected_indices.size > 1
       moves = canvas.selected_indices.map do |i|
         el = canvas.elements[i]
         b  = el.bounds
         {el.id, BoundsData.new(b.x, b.y, b.width, b.height)}
       end
-      canvas.emit(MoveMultiEvent.new(moves))
+      moved = canvas.selected_indices.each_with_index.any? do |el_idx, i|
+        b  = canvas.elements[el_idx].bounds
+        sb = starts[i]
+        b.x != sb.x || b.y != sb.y
+      end
+      canvas.emit(MoveMultiEvent.new(moves)) if moved
     elsif (idx = canvas.selected_index)
       el = canvas.elements[idx]
       b  = el.bounds
-      canvas.emit(MoveElementEvent.new(el.id, BoundsData.new(b.x, b.y, b.width, b.height)))
+      if (sb = @drag_start_bounds).nil? || b.x != sb.x || b.y != sb.y
+        canvas.emit(MoveElementEvent.new(el.id, BoundsData.new(b.x, b.y, b.width, b.height)))
+      end
     end
     IdleMode.new(@previous_cursor_tool)
   end

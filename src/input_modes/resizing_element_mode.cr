@@ -32,7 +32,10 @@ class ResizingElementMode < InputMode
     if (idx = canvas.selected_index)
       el = canvas.elements[idx]
       b  = el.bounds
-      canvas.emit(ResizeElementEvent.new(el.id, BoundsData.new(b.x, b.y, b.width, b.height)))
+      sb = @drag_start_bounds
+      if b.x != sb.x || b.y != sb.y || b.width != sb.width || b.height != sb.height
+        canvas.emit(ResizeElementEvent.new(el.id, BoundsData.new(b.x, b.y, b.width, b.height)))
+      end
     end
     IdleMode.new(@previous_cursor_tool)
   end

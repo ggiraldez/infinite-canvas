@@ -4,6 +4,20 @@
 
 1. ~~**`@selected_index` is an index, not an identity**~~ — resolved: `@selected_id : UUID?` and `@selected_ids : Array(UUID)` now track selection by identity; `@selected_index` is a derived cache that is rebuilt after each event via `sync_elements_from_model`.
 
+1a. ~~**`select_element` with an out-of-bounds index set `@selected_index` but cleared `@selected_id`**~~ — resolved: `@selected_index` is now only assigned when `@elements[new_idx]?` succeeds; a missing element clears both fields.
+
+1b. ~~**Forward-delete with an active selection emitted the wrong event**~~ — resolved: `handle_delete` now checks `had_selection` and emits `TextChangedEvent` (full new text) when a selection is deleted, matching the existing backspace behaviour. Previously it always emitted `DeleteTextEvent(length=1)`, de-syncing model from element state for the remainder of the text session.
+
+1c. ~~**`Ctrl+Delete` (forward word-delete) was missing**~~ — resolved: added `handle_forward_delete_word` to `TextEditing` (mirrors `handle_backspace_word` going forward) and wired `Ctrl+Delete` in `handle_delete`.
+
+1d. ~~**Undo/redo during an active drag or draw left `@mode` pointing to stale state**~~ — resolved: `perform_undo` and `perform_redo` now reset `@mode` to `IdleMode` before syncing, so any in-progress drag/resize/draw mode is cleanly cancelled.
+
+1e. ~~**Clicking an arrow (or any non-editable element) without dragging created a spurious undo entry**~~ — resolved: `PressingOnElementMode.on_mouse_release` now compares final bounds against `@drag_start_bounds` and skips `MoveElementEvent` when nothing moved.
+
+1f. ~~**A drag snapped back to origin by the grid still emitted a move/resize event**~~ — resolved: `MovingElementsMode` and `ResizingElementMode` now check whether the element actually moved/changed size before emitting, matching the fix in `PressingOnElementMode`.
+
+1g. ~~**`Enter` key could double-fire on platforms that report it as char code 13**~~ — resolved: the `get_char_pressed` loop now skips code 13; Enter is handled solely by the explicit `key_pressed?` check below.
+
 2. **`save` only runs on clean exit** — `canvas.save` is called once at the bottom of the main loop. A crash, force-quit, or SIGTERM loses all unsaved work. Add autosave every N seconds or on every structural change.
 
 3. **Save path is relative to working directory** — `SAVE_FILE = "canvas.json"` resolves relative to wherever the binary is launched from. Running from a different directory silently creates a second file or fails to load the existing one. Use the executable's directory or a platform config dir (e.g. `~/.local/share/`).
@@ -24,9 +38,13 @@
 
 9. ~~**`to_data` is not part of the `Element` interface**~~ — resolved: the model layer (`CanvasModel`, `RectModel`, `TextModel`, `ArrowModel`) is the canonical data representation; `Canvas#save` is now `File.write(SAVE_FILE, @model.to_json)`. Mirror structs in `persistence.cr` are retained only as a legacy migration path.
 
-10. **`handle_left_mouse` is 70+ lines handling three distinct phases** — split into `handle_mouse_press`, `handle_mouse_drag`, and `handle_mouse_release`. The current method is hard to scan and will only grow as new interaction modes are added.
+10. ~~**`handle_left_mouse` is 70+ lines handling three distinct phases**~~ — resolved: input is now split across `InputMode` subclasses (`IdleMode`, `PressingOnElementMode`, `MovingElementsMode`, `ResizingElementMode`, `TextEditingMode`, `TextSelectingMode`, `DrawingShapeMode`, `ConnectingArrowMode`, `RubberBandSelectMode`); `handle_left_mouse` dispatches to the active mode.
 
 11. **`draw_hud` in `InfiniteCanvas` is growing toward knowing too much about Canvas internals** — it already reads `active_tool`, `elements.size`, `camera.zoom`, and `selected_element`. Consider a `Canvas#hud_info` method returning a named tuple, keeping rendering in `InfiniteCanvas` but data assembly in `Canvas`.
+
+11a. **Multi-element delete bypasses `emit()`** — `handle_delete` with a multi-selection calls `apply` + `history.push` + `sync_elements_from_model` directly (to batch N deletions into one sync). Future changes to `emit()` will silently not apply here. Extract an `emit_batch(events)` helper that shares the same logic but defers the single sync to the end.
+
+11b. **Duplicated `TextElement`/`RectElement` dispatch in three places** — `idle_mode.cr`, `pressing_on_element_mode.cr` (twice), and `canvas_input.cr` all pattern-match the same two types and call identical methods on each branch. A shared union alias or a `TextEditable` interface would eliminate the repetition.
 
 12. ~~**`ArrowElement#elements` is a public `property`**~~ — resolved: `ArrowElement` no longer holds an `@elements` back-reference; waypoints are injected by the layout pass and stored in `cached_waypoints`.
 

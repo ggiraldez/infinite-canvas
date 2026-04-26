@@ -71,8 +71,11 @@ class PressingOnElementMode < InputMode
       end
       TextEditingMode.new(el.id, @previous_cursor_tool)
     else
-      b = el.bounds
-      canvas.emit(MoveElementEvent.new(el.id, BoundsData.new(b.x, b.y, b.width, b.height)))
+      b  = el.bounds
+      sb = @drag_start_bounds
+      if b.x != sb.x || b.y != sb.y || b.width != sb.width || b.height != sb.height
+        canvas.emit(MoveElementEvent.new(el.id, BoundsData.new(b.x, b.y, b.width, b.height)))
+      end
       IdleMode.new(@previous_cursor_tool)
     end
   end

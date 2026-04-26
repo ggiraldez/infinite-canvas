@@ -31,8 +31,8 @@ class Canvas
   end
 
   private def handle_left_mouse
-    mouse_world  = R.get_screen_to_world_2d(R.get_mouse_position, @camera)
     mouse_screen = R.get_mouse_position
+    mouse_world  = R.get_screen_to_world_2d(mouse_screen, @camera)
 
     if R.mouse_button_pressed?(R::MouseButton::Left)
       now = R.get_time
@@ -66,6 +66,7 @@ class Canvas
     # ── Char input ─────────────────────────────────────────────────────────────
     chars_typed = ""
     while (code = R.get_char_pressed) > 0
+      next if code == 13  # Enter is handled explicitly below; skip to avoid double-fire
       chars_typed += code.chr.to_s
       el.handle_char_input(code.chr)
       last_op = :char
@@ -146,7 +147,8 @@ class Canvas
       else
         # Single char insert with no prior selection: coalesce into a word group.
         ch        = chars_typed[0]
-        timed_out = R.get_time - @text_coalesce_time > COALESCE_TIMEOUT
+        now       = R.get_time
+        timed_out = now - @text_coalesce_time > COALESCE_TIMEOUT
         boundary  = !@text_coalesce_text.empty? &&
                     !ch.whitespace? && @text_coalesce_text[-1].whitespace?
         flush_text_coalesce if @text_coalesce_id != id || timed_out || boundary
@@ -154,7 +156,7 @@ class Canvas
         @text_coalesce_pos    = cursor_before if @text_coalesce_text.empty?
         @text_coalesce_text  += ch.to_s
         @text_coalesce_bounds = bounds_now
-        @text_coalesce_time   = R.get_time
+        @text_coalesce_time   = now
       end
 
     when :backspace
@@ -190,20 +192,27 @@ class Canvas
   private def handle_delete
     return if @mode.text_selecting?
     return unless R.key_pressed?(R::KeyboardKey::Delete) || R.key_pressed_repeat?(R::KeyboardKey::Delete)
+    ctrl = R.key_down?(R::KeyboardKey::LeftControl) || R.key_down?(R::KeyboardKey::RightControl)
     if @text_session_id && (idx = @selected_index)
-      # In text editing mode: forward-delete (char to the right of the cursor).
+      # In text editing mode: forward-delete (char or word to the right of the cursor).
       el = @elements[idx]
       case el
       when TextElement, RectElement
-        text_before  = editing_text_for(el)
-        cursor_start = el.cursor_pos
-        el.handle_forward_delete
+        text_before   = editing_text_for(el)
+        cursor_start  = el.cursor_pos
+        had_selection = !el.selection_range.nil?
+        ctrl ? el.handle_forward_delete_word : el.handle_forward_delete
         refresh_element_layout(el)
         text_after = editing_text_for(el)
         if text_before != text_after
-          b = el.bounds
+          b  = el.bounds
+          bd = BoundsData.new(b.x, b.y, b.width, b.height)
           flush_text_coalesce
-          emit_text_event(DeleteTextEvent.new(el.id, cursor_start, 1, BoundsData.new(b.x, b.y, b.width, b.height)))
+          if had_selection || ctrl
+            emit_text_event(TextChangedEvent.new(el.id, text_after, bd))
+          else
+            emit_text_event(DeleteTextEvent.new(el.id, cursor_start, 1, bd))
+          end
         end
       end
     elsif multi_selected?
@@ -286,6 +295,7 @@ class Canvas
     return unless (restored = @history.undo)
     @model           = restored
     @text_session_id = nil
+    @mode            = IdleMode.new(cursor_tool)
     sync_elements_from_model
   end
 
@@ -294,6 +304,7 @@ class Canvas
     return unless (restored = @history.redo)
     @model           = restored
     @text_session_id = nil
+    @mode            = IdleMode.new(cursor_tool)
     sync_elements_from_model
   end
 
@@ -337,11 +348,12 @@ class Canvas
     if old_idx != new_idx
       commit_text_session_if_active
       @elements[old_idx].clear_selection if old_idx && old_idx < @elements.size
-      @selected_index = new_idx
       if new_idx && (el = @elements[new_idx]?)
+        @selected_index  = new_idx
         @selected_id     = el.id
         @text_session_id = nil
       else
+        @selected_index  = nil
         @selected_id     = nil
         @text_session_id = nil
       end

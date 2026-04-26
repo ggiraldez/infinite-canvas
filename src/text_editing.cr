@@ -85,6 +85,23 @@ module TextEditing
     reset_blink
   end
 
+  def handle_forward_delete_word
+    if delete_selection
+      @preferred_x = nil
+      reset_blink
+      return
+    end
+    chars = editing_text.chars
+    return if @cursor_pos >= chars.size
+    pos  = @cursor_pos
+    size = chars.size
+    while pos < size && chars[pos].whitespace?; pos += 1; end
+    while pos < size && !chars[pos].whitespace?; pos += 1; end
+    self.editing_text = (chars[0...@cursor_pos] + chars[pos...size]).join
+    @preferred_x = nil
+    reset_blink
+  end
+
   def handle_cursor_left(shift : Bool = false)
     anchor_for_shift(shift)
     @cursor_pos = [@cursor_pos - 1, 0].max

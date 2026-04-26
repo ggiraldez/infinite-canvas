@@ -105,13 +105,19 @@ Select any rectangle or text node to start editing its content immediately.
 | Insert newline | `Enter` |
 | Delete character left of cursor | `Backspace` |
 | Delete word left of cursor | `Ctrl+Backspace` |
+| Delete character right of cursor | `Delete` (in text-editing mode) |
+| Delete word right of cursor | `Ctrl+Delete` |
 | Move cursor | `←` / `→` / `↑` / `↓` |
 | Jump by word | `Ctrl+←` / `Ctrl+→` |
 | Extend selection | Hold `Shift` with any cursor movement key |
-| Delete selection | `Backspace` with an active selection |
+| Select word | Double-click |
+| Select by dragging | Click and drag within an active text element |
+| Extend selection on click | `Shift+click` within an active text element |
+| Delete selection | `Backspace` or `Delete` with an active selection |
 | Copy selection | `Ctrl+C` |
+| Cut selection | `Ctrl+X` |
 | Paste (replaces selection) | `Ctrl+V` |
-| Delete element | `Delete` (also removes connected arrows) |
+| Delete element | `Delete` (when not in text-editing mode; also removes connected arrows) |
 | Toggle arrow routing | `Tab` (while an arrow is selected) |
 | Undo | `Ctrl+Z` |
 | Redo | `Ctrl+Y` or `Ctrl+Shift+Z` |
