@@ -183,6 +183,7 @@ class LayoutEngine
   end
 
   private def measure_line_runs(text : String, avail_w : Float32, font_size : Int32) : TextLayoutData
-    TextLayout.compute(text, avail_w, font_size) { |s| @measure.call(s, font_size) }
+    # Character spacing should match the value in AppFont
+    TextLayout.compute(text, avail_w, font_size, 0) { |s| @measure.call(s, font_size) }
   end
 end

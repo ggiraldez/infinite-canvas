@@ -118,5 +118,5 @@ class DeleteTextEvent < CanvasEvent
   property new_bounds : BoundsData
   property cursor_before : Int32  # cursor position before the delete (for undo restoration)
 
-  def initialize(@id : UUID, @start : Int32, @length : Int32, @new_bounds : BoundsData, @cursor_before : Int32); end
+  def initialize(@id : UUID, @start : Int32, @length : Int32, @new_bounds : BoundsData, @cursor_before : Int32 = 0); end
 end

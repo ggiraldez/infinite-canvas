@@ -1,5 +1,6 @@
 require "json"
 require "raylib-cr"
+require "./app_font"
 require "./model"
 require "./events"
 require "./apply"
@@ -128,7 +129,7 @@ class Canvas
     @model         = CanvasModel.new
     @history       = HistoryManager.new(@model)
     @elements      = [] of Element
-    @layout_engine = LayoutEngine.new(Proc(String, Int32, Int32).new { |t, fs| R.measure_text(t, fs) })
+    @layout_engine = LayoutEngine.new(Proc(String, Int32, Int32).new { |t, fs| AppFont.measure(t, fs) })
     @render_data   = RenderData.new
     @camera = R::Camera2D.new(
       offset: R::Vector2.new(x: screen_width / 2.0_f32, y: screen_height / 2.0_f32),
@@ -370,7 +371,7 @@ class Canvas
   def refresh_element_layout(el : Element) : Nil
     if el.is_a?(RectElement)
       label_lines = el.label.split('\n').map { |line|
-        {line, R.measure_text(line, RectElement::LABEL_FONT_SIZE)}
+        {line, AppFont.measure(line, RectElement::LABEL_FONT_SIZE)}
       }
       min_w, min_h = el.min_size
       b = el.bounds

@@ -1,14 +1,22 @@
 require "spec"
 
-# Stub Raylib module — only the two symbols TextEditing calls.
-# measure_text: 8 px per character, font-size-independent, no spacing.
-# This makes nearest_col_for_x deterministic: column i snaps at x = (2i+1)*4.
+# Stub Raylib module
 module Raylib
-  def self.get_time : Float64; 0.0_f64; end
-  def self.measure_text(text : String, font_size : Int32) : Int32; text.size * 8; end
+  def self.get_time : Float64
+    0.0_f64
+  end
 end
 
 alias R = Raylib
+
+# Stub AppFont module
+# measure: 8 px per character, font-size-independent, no spacing.
+# This makes nearest_col_for_x deterministic: column i snaps at x = (2i+1)*4.
+module AppFont
+  def self.measure(text : String, font_size : Int32) : Int32
+    text.size * 8
+  end
+end
 
 require "../src/text_editing"
 

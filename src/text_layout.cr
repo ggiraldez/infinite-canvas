@@ -14,10 +14,11 @@ module TextLayout
   # of the naïve O(L) re-measurement per line.  See the original method
   # comment in text_element.cr for a full derivation.
   def self.compute(text : String, avail_width : Float32, font_size : Int32,
+                   spacing : Int32? = nil,
                    &measure : String -> Int32) : TextLayoutData
     avail_i     = [avail_width, 1.0_f32].max.to_i32
     result      = [] of {String, Int32}
-    spacing     = font_size / 10
+    spacing     = spacing || (font_size / 10)
     full_offset = 0
 
     text.split('\n').each do |para|

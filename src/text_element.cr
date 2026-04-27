@@ -1,4 +1,5 @@
 require "./text_layout"
+require "./app_font"
 
 # ─── Text node ────────────────────────────────────────────────────────────────
 
@@ -104,11 +105,11 @@ class TextElement < Element
       next_start = vi + 1 < runs.size ? runs[vi + 1][1] : Int32::MAX
       if @cursor_pos >= line_start && @cursor_pos < next_start
         col  = [@cursor_pos - line_start, line_str.chars.size].min
-        x_px = R.measure_text(line_str.chars[0...col].join, FONT_SIZE)
+        x_px = AppFont.measure(line_str.chars[0...col].join, FONT_SIZE)
         return {vi, x_px}
       end
     end
     last_line = runs.last[0]
-    {runs.size - 1, R.measure_text(last_line, FONT_SIZE)}
+    {runs.size - 1, AppFont.measure(last_line, FONT_SIZE)}
   end
 end

@@ -1,4 +1,5 @@
 require "raylib-cr"
+require "./app_font"
 require "./canvas"
 require "./toolbar"
 require "./color_palette"
@@ -13,6 +14,7 @@ module InfiniteCanvas
   def self.run
     R.set_config_flags(R::ConfigFlags::WindowResizable | R::ConfigFlags::MSAA4xHint)
     R.init_window(WINDOW_WIDTH, WINDOW_HEIGHT, TITLE)
+    AppFont.load
     R.set_target_fps(60)
     R.set_exit_key(R::KeyboardKey::Null)
 
@@ -60,13 +62,13 @@ module InfiniteCanvas
   private def self.draw_hud(canvas : Canvas, toolbar : Toolbar, palette : ColorPalette, smooth_update_ms : Float64, smooth_draw_ms : Float64)
     toolbar.draw(canvas)
     palette.draw(canvas)
-    R.draw_text("Elements: #{canvas.elements.size}   Zoom: #{canvas.camera.zoom.round(2)}x", 12, 12, 20, R::GRAY)
+    AppFont.draw("Elements: #{canvas.elements.size}   Zoom: #{canvas.camera.zoom.round(2)}x", 12, 12, 20, R::GRAY)
     if (el = canvas.selected_element).is_a?(ArrowElement)
-      R.draw_text("Routing: #{el.routing_style}   [Tab]", 12, 36, 20, R::DARKGRAY)
+      AppFont.draw("Routing: #{el.routing_style}   [Tab]", 12, 36, 20, R::DARKGRAY)
     end
     timing_label = "update: #{smooth_update_ms.round(2)}ms  draw: #{smooth_draw_ms.round(2)}ms"
-    label_w = R.measure_text(timing_label, 20)
-    R.draw_text(timing_label, R.get_screen_width - 110 - label_w, R.get_screen_height - 30, 20, R::GRAY)
+    label_w = AppFont.measure(timing_label, 20)
+    AppFont.draw(timing_label, R.get_screen_width - 110 - label_w, R.get_screen_height - 30, 20, R::GRAY)
     R.draw_fps(R.get_screen_width - 100, R.get_screen_height - 30)
   end
 end

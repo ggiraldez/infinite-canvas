@@ -1,4 +1,5 @@
 require "raylib-cr"
+require "./app_font"
 require "./canvas"
 require "./events"
 require "./model"
@@ -74,8 +75,8 @@ class ColorPalette
       R.draw_rectangle_rec(rect, scheme.fill.to_raylib)
       R.draw_rectangle_lines_ex(rect, 1.5_f32, scheme.stroke.to_raylib)
       font_size = 20
-      aw = R.measure_text("A", font_size)
-      R.draw_text("A",
+      aw = AppFont.measure("A", font_size)
+      AppFont.draw("A",
         (rect.x + (rect.width - aw) / 2).to_i,
         (rect.y + (rect.height - font_size) / 2).to_i,
         font_size, scheme.label.to_raylib)
