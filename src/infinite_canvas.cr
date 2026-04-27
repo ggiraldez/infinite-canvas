@@ -21,11 +21,11 @@ module InfiniteCanvas
     canvas = Canvas.new(WINDOW_WIDTH, WINDOW_HEIGHT)
     canvas.load
 
-    toolbar  = Toolbar.new
-    palette  = ColorPalette.new
+    toolbar = Toolbar.new
+    palette = ColorPalette.new
 
     smooth_update_ms = 0.0_f64
-    smooth_draw_ms   = 0.0_f64
+    smooth_draw_ms = 0.0_f64
 
     until R.close_window? || canvas.quit_requested?
       # Keep the camera offset pinned to the window centre when resized so

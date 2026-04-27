@@ -36,13 +36,26 @@ private class Ed
   end
 
   # Expose internals needed for assertions.
-  def cursor; @cursor_pos; end
-  def anchor; @selection_anchor; end
-  def preferred_x; @preferred_x; end
+  def cursor
+    @cursor_pos
+  end
+
+  def anchor
+    @selection_anchor
+  end
+
+  def preferred_x
+    @preferred_x
+  end
 
   # Place cursor at an arbitrary position for setup.
-  def cursor=(pos : Int32); @cursor_pos = pos; end
-  def anchor=(pos : Int32?); @selection_anchor = pos; end
+  def cursor=(pos : Int32)
+    @cursor_pos = pos
+  end
+
+  def anchor=(pos : Int32?)
+    @selection_anchor = pos
+  end
 end
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -188,7 +201,7 @@ describe "TextEditing" do
 
     it "deletes the whitespace separator and the preceding word when cursor is right after a space" do
       e = Ed.new("hello world")
-      e.cursor = 6            # just past the space: skips ' ' then 'hello'
+      e.cursor = 6 # just past the space: skips ' ' then 'hello'
       e.handle_backspace_word
       e.editing_text.should eq "world"
       e.cursor.should eq 0
@@ -497,9 +510,9 @@ describe "TextEditing" do
       # Second up: sticky target still 40, snaps to end of "hello" (pos 5).
       e = Ed.new("hello\nhi\nworld")
       e.handle_cursor_up
-      e.cursor.should eq 8   # end of "hi"
+      e.cursor.should eq 8 # end of "hi"
       e.handle_cursor_up
-      e.cursor.should eq 5   # end of "hello"
+      e.cursor.should eq 5 # end of "hello"
     end
 
     it "sets a selection anchor when shift is held" do

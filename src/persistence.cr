@@ -37,13 +37,13 @@ class RectElementData < ElementData
 
   def initialize(e : RectElement)
     @type = "rect"
-    @id   = e.id.to_s
+    @id = e.id.to_s
     b = e.bounds
     @x, @y, @width, @height = b.x, b.y, b.width, b.height
-    @fill         = ColorData.new(e.fill)
-    @stroke       = ColorData.new(e.stroke)
+    @fill = ColorData.new(e.fill)
+    @stroke = ColorData.new(e.stroke)
     @stroke_width = e.stroke_width
-    @label        = e.label
+    @label = e.label
   end
 
   def to_element : Element
@@ -66,7 +66,7 @@ class TextElementData < ElementData
 
   def initialize(e : TextElement)
     @type = "text"
-    @id   = e.id.to_s
+    @id = e.id.to_s
     b = e.bounds
     @x, @y, @width, @height = b.x, b.y, b.width, b.height
     @text = e.text
@@ -89,10 +89,10 @@ class ArrowElementData < ElementData
   property routing_style : String = "orthogonal"
 
   def initialize(e : ArrowElement)
-    @type          = "arrow"
-    @id            = e.id.to_s
-    @from_id       = e.from_id.to_s
-    @to_id         = e.to_id.to_s
+    @type = "arrow"
+    @id = e.id.to_s
+    @from_id = e.from_id.to_s
+    @to_id = e.to_id.to_s
     @routing_style = e.routing_style.to_s.downcase
   end
 

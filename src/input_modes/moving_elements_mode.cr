@@ -4,7 +4,7 @@ class MovingElementsMode < InputMode
     @drag_start_mouse : R::Vector2,
     @drag_start_bounds : R::Rectangle?,
     @multi_drag_starts : Array(R::Rectangle)?,
-    @previous_cursor_tool : Canvas::CursorTool
+    @previous_cursor_tool : Canvas::CursorTool,
   ); end
 
   def on_mouse_press(canvas : Canvas, mouse_world : R::Vector2,
@@ -52,18 +52,18 @@ class MovingElementsMode < InputMode
     if (starts = @multi_drag_starts) && canvas.selected_indices.size > 1
       moves = canvas.selected_indices.map do |i|
         el = canvas.elements[i]
-        b  = el.bounds
+        b = el.bounds
         {el.id, BoundsData.new(b.x, b.y, b.width, b.height)}
       end
       moved = canvas.selected_indices.each_with_index.any? do |el_idx, i|
-        b  = canvas.elements[el_idx].bounds
+        b = canvas.elements[el_idx].bounds
         sb = starts[i]
         b.x != sb.x || b.y != sb.y
       end
       canvas.emit(MoveMultiEvent.new(moves)) if moved
     elsif (idx = canvas.selected_index)
       el = canvas.elements[idx]
-      b  = el.bounds
+      b = el.bounds
       if (sb = @drag_start_bounds).nil? || b.x != sb.x || b.y != sb.y
         canvas.emit(MoveElementEvent.new(el.id, BoundsData.new(b.x, b.y, b.width, b.height)))
       end

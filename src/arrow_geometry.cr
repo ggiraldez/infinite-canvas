@@ -5,14 +5,16 @@ require "./model"
 # Mirrors the logic in arrow_layout.cr but operates on plain Crystal types
 # so LayoutEngine can call it from unit tests without a Raylib dependency.
 module ArrowGeometry
-  enum Side; Left; Right; Top; Bottom; end
+  enum Side
+    Left; Right; Top; Bottom
+  end
 
   alias Pt = {Float32, Float32}
 
   # Which border sides the arrow will use for *src* (exit) and *tgt* (entry)
   # given the centre-to-centre displacement (*dx*, *dy*).
   def self.natural_sides(src : BoundsData, tgt : BoundsData,
-                          dx : Float32, dy : Float32) : {Side, Side}
+                         dx : Float32, dy : Float32) : {Side, Side}
     sx = src.x + src.w / 2.0_f32
     sy = src.y + src.h / 2.0_f32
     tx = tgt.x + tgt.w / 2.0_f32
@@ -20,24 +22,24 @@ module ArrowGeometry
 
     if dx.abs > 0.5_f32 && dy.abs > 0.5_f32
       # Option A: horizontal exit from src, vertical entry to tgt.
-      ex_a  = dx > 0 ? src.x + src.w : src.x
-      ey_a  = dy > 0 ? tgt.y : tgt.y + tgt.h
+      ex_a = dx > 0 ? src.x + src.w : src.x
+      ey_a = dy > 0 ? tgt.y : tgt.y + tgt.h
       seg1a = dx > 0 ? tx > ex_a : tx < ex_a
       seg2a = dy > 0 ? ey_a > sy : ey_a < sy
       if seg1a && seg2a
         from_s = dx > 0 ? Side::Right : Side::Left
-        to_s   = dy > 0 ? Side::Top   : Side::Bottom
+        to_s = dy > 0 ? Side::Top : Side::Bottom
         return {from_s, to_s}
       end
 
       # Option B: vertical exit from src, horizontal entry to tgt.
-      ey_b  = dy > 0 ? src.y + src.h : src.y
-      ex_b  = dx > 0 ? tgt.x : tgt.x + tgt.w
+      ey_b = dy > 0 ? src.y + src.h : src.y
+      ex_b = dx > 0 ? tgt.x : tgt.x + tgt.w
       seg1b = dy > 0 ? ty > ey_b : ty < ey_b
       seg2b = dx > 0 ? ex_b > sx : ex_b < sx
       if seg1b && seg2b
         from_s = dy > 0 ? Side::Bottom : Side::Top
-        to_s   = dx > 0 ? Side::Left   : Side::Right
+        to_s = dx > 0 ? Side::Left : Side::Right
         return {from_s, to_s}
       end
     end
@@ -51,10 +53,10 @@ module ArrowGeometry
   # World-space point on *side* of *b* at position *frac* (0 = start, 1 = end).
   def self.exit_point_on_side(side : Side, b : BoundsData, frac : Float32) : Pt
     case side
-    when Side::Left   then {b.x,               b.y + frac * b.h}
-    when Side::Right  then {b.x + b.w,          b.y + frac * b.h}
-    when Side::Top    then {b.x + frac * b.w,   b.y}
-    when Side::Bottom then {b.x + frac * b.w,   b.y + b.h}
+    when Side::Left   then {b.x, b.y + frac * b.h}
+    when Side::Right  then {b.x + b.w, b.y + frac * b.h}
+    when Side::Top    then {b.x + frac * b.w, b.y}
+    when Side::Bottom then {b.x + frac * b.w, b.y + b.h}
     else                   {b.x + b.w / 2.0_f32, b.y + b.h / 2.0_f32}
     end
   end
@@ -62,22 +64,28 @@ module ArrowGeometry
   # Which border of *b* is *pt* closest to?
   def self.point_side(pt : Pt, b : BoundsData) : Side
     px, py = pt
-    dl  = (px - b.x).abs
-    dr  = (px - (b.x + b.w)).abs
-    dt  = (py - b.y).abs
-    db  = (py - (b.y + b.h)).abs
+    dl = (px - b.x).abs
+    dr = (px - (b.x + b.w)).abs
+    dt = (py - b.y).abs
+    db = (py - (b.y + b.h)).abs
     min = dl
-    s   = Side::Left
-    if dr < min; min = dr; s = Side::Right;  end
-    if dt < min; min = dt; s = Side::Top;    end
-    if db < min;            s = Side::Bottom; end
+    s = Side::Left
+    if dr < min
+      min = dr; s = Side::Right
+    end
+    if dt < min
+      min = dt; s = Side::Top
+    end
+    if db < min
+      s = Side::Bottom
+    end
     s
   end
 
   # Point where the ray from *(ox, oy)* toward *(tx, ty)* exits rectangle *b*.
   def self.border_exit_point(b : BoundsData,
-                               ox : Float32, oy : Float32,
-                               tx : Float32, ty : Float32) : Pt
+                             ox : Float32, oy : Float32,
+                             tx : Float32, ty : Float32) : Pt
     ddx = tx - ox
     ddy = ty - oy
     return {ox, oy} if ddx.abs < 0.001_f32 && ddy.abs < 0.001_f32
@@ -119,8 +127,8 @@ module ArrowGeometry
   # Caller supplies the pre-computed *from_side* / *to_side* and spread fractions
   # so this function is pure geometry with no model lookups.
   def self.ortho_route(src : BoundsData, tgt : BoundsData,
-                        frac_src : Float32, frac_tgt : Float32,
-                        from_side : Side, to_side : Side) : Array(Pt)
+                       frac_src : Float32, frac_tgt : Float32,
+                       from_side : Side, to_side : Side) : Array(Pt)
     sx = src.x + src.w / 2.0_f32
     sy = src.y + src.h / 2.0_f32
     tx = tgt.x + tgt.w / 2.0_f32
@@ -128,33 +136,33 @@ module ArrowGeometry
     dx = tx - sx
     dy = ty - sy
 
-    exit_y  = src.y + frac_src * src.h
-    exit_x  = src.x + frac_src * src.w
+    exit_y = src.y + frac_src * src.h
+    exit_x = src.x + frac_src * src.w
     entry_x = tgt.x + frac_tgt * tgt.w
     entry_y = tgt.y + frac_tgt * tgt.h
 
     # ── L-shape attempts (2 segments) ────────────────────────────────────────
     if dx.abs > 0.5_f32 && dy.abs > 0.5_f32
-      ex_a  = dx > 0 ? src.x + src.w : src.x
-      ey_a  = dy > 0 ? tgt.y : tgt.y + tgt.h
+      ex_a = dx > 0 ? src.x + src.w : src.x
+      ey_a = dy > 0 ? tgt.y : tgt.y + tgt.h
       seg1a = dx > 0 ? entry_x > ex_a : entry_x < ex_a
-      seg2a = dy > 0 ? ey_a > exit_y  : ey_a < exit_y
+      seg2a = dy > 0 ? ey_a > exit_y : ey_a < exit_y
       if seg1a && seg2a
         return [{ex_a, exit_y}, {entry_x, exit_y}, {entry_x, ey_a}]
       end
 
-      ey_b  = dy > 0 ? src.y + src.h : src.y
-      ex_b  = dx > 0 ? tgt.x : tgt.x + tgt.w
+      ey_b = dy > 0 ? src.y + src.h : src.y
+      ex_b = dx > 0 ? tgt.x : tgt.x + tgt.w
       seg1b = dy > 0 ? entry_y > ey_b : entry_y < ey_b
-      seg2b = dx > 0 ? ex_b > exit_x  : ex_b < exit_x
+      seg2b = dx > 0 ? ex_b > exit_x : ex_b < exit_x
       if seg1b && seg2b
         return [{exit_x, ey_b}, {exit_x, entry_y}, {ex_b, entry_y}]
       end
     end
 
     # ── 3-segment fallback ────────────────────────────────────────────────────
-    a  = exit_point_on_side(from_side, src, frac_src)
-    b  = exit_point_on_side(to_side,   tgt, frac_tgt)
+    a = exit_point_on_side(from_side, src, frac_src)
+    b = exit_point_on_side(to_side, tgt, frac_tgt)
     ax, ay = a
     bx, by = b
 

@@ -23,7 +23,7 @@ class RubberBandSelectMode < InputMode
 
   def on_mouse_release(canvas : Canvas, mouse_world : R::Vector2) : InputMode
     sel_rect = canvas.rect_from_points(@draw_start, @draw_current)
-    indices  = (0...canvas.elements.size).select do |i|
+    indices = (0...canvas.elements.size).select do |i|
       el = canvas.elements[i]
       !el.is_a?(ArrowElement) && canvas.rects_overlap?(sel_rect, el.bounds)
     end.to_a

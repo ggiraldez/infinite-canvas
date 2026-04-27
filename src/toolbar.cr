@@ -10,25 +10,25 @@ class Toolbar
     {Canvas::CursorTool::Arrow, "Arrow", "A"},
   ]
 
-  BTN_W       =  80
-  BTN_H       =  58
-  GAP         =   6
-  PANEL_P     =   8
-  SECTION_GAP =  20  # wider gap between tool group and action group, holds the divider
-  MARGIN_B    =  16
-  FONT_KEY    =  20
-  FONT_LBL    =  20
+  BTN_W       = 80
+  BTN_H       = 58
+  GAP         =  6
+  PANEL_P     =  8
+  SECTION_GAP = 20 # wider gap between tool group and action group, holds the divider
+  MARGIN_B    = 16
+  FONT_KEY    = 20
+  FONT_LBL    = 20
 
-  BG           = R::Color.new(r: 255, g: 255, b: 255, a: 230)
-  BORDER       = R::Color.new(r: 200, g: 200, b: 205, a: 255)
-  DIVIDER      = R::Color.new(r: 210, g: 210, b: 215, a: 255)
-  BTN_FILL     = R::Color.new(r: 240, g: 242, b: 245, a: 255)
-  BTN_DISABLED = R::Color.new(r: 248, g: 248, b: 250, a: 255)
-  ACTIVE       = R::Color.new(r: 0, g: 120, b: 255, a: 255)
-  TEXT_DARK    = R::Color.new(r: 50, g: 50, b: 60, a: 255)
-  TEXT_DIM     = R::Color.new(r: 120, g: 120, b: 130, a: 255)
+  BG            = R::Color.new(r: 255, g: 255, b: 255, a: 230)
+  BORDER        = R::Color.new(r: 200, g: 200, b: 205, a: 255)
+  DIVIDER       = R::Color.new(r: 210, g: 210, b: 215, a: 255)
+  BTN_FILL      = R::Color.new(r: 240, g: 242, b: 245, a: 255)
+  BTN_DISABLED  = R::Color.new(r: 248, g: 248, b: 250, a: 255)
+  ACTIVE        = R::Color.new(r: 0, g: 120, b: 255, a: 255)
+  TEXT_DARK     = R::Color.new(r: 50, g: 50, b: 60, a: 255)
+  TEXT_DIM      = R::Color.new(r: 120, g: 120, b: 130, a: 255)
   TEXT_DISABLED = R::Color.new(r: 190, g: 190, b: 200, a: 255)
-  KEY_ACT      = R::Color.new(r: 160, g: 215, b: 255, a: 255)
+  KEY_ACT       = R::Color.new(r: 160, g: 215, b: 255, a: 255)
 
   # Checks for a mouse click on any toolbar button. Tool buttons switch the
   # active tool; action buttons (undo/redo) fire immediately. Blocks the canvas
@@ -98,11 +98,11 @@ class Toolbar
       if tool == active
         R.draw_rectangle_rec(btn, ACTIVE)
         text_color = R::WHITE
-        key_color  = KEY_ACT
+        key_color = KEY_ACT
       else
         R.draw_rectangle_rec(btn, BTN_FILL)
         text_color = TEXT_DARK
-        key_color  = TEXT_DIM
+        key_color = TEXT_DIM
       end
 
       key_w = AppFont.measure(key, FONT_KEY)
@@ -126,11 +126,11 @@ class Toolbar
     if enabled
       R.draw_rectangle_rec(btn, BTN_FILL)
       text_color = TEXT_DARK
-      key_color  = TEXT_DIM
+      key_color = TEXT_DIM
     else
       R.draw_rectangle_rec(btn, BTN_DISABLED)
       text_color = TEXT_DISABLED
-      key_color  = TEXT_DISABLED
+      key_color = TEXT_DISABLED
     end
 
     key_w = AppFont.measure(key, FONT_KEY)

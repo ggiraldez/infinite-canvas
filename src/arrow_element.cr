@@ -7,7 +7,7 @@ require "./arrow_layout"
 # cached_waypoints after each layout pass and read by the Renderer.
 class ArrowElement < Element
   ARROW_COLOR    = R::Color.new(r: 60, g: 60, b: 60, a: 220)
-  ARROW_WIDTH    = 2.0_f32
+  ARROW_WIDTH    =  2.0_f32
   ARROWHEAD_LEN  = 14.0_f32
   ARROWHEAD_HALF =  5.0_f32
 

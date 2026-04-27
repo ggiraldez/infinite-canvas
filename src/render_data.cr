@@ -6,17 +6,17 @@ require "./text_layout"
 alias Measurer = Proc(String, Int32, Int32)
 
 struct TextRenderData
-  property bounds    : BoundsData
+  property bounds : BoundsData
   property line_runs : TextLayoutData
-  property wraps     : Bool
+  property wraps : Bool
 
   def initialize(@bounds : BoundsData, @line_runs : TextLayoutData, @wraps : Bool)
   end
 end
 
 struct RectRenderData
-  property bounds      : BoundsData
-  property label_lines : Array({String, Int32})  # (line_text, pixel_width) per line
+  property bounds : BoundsData
+  property label_lines : Array({String, Int32}) # (line_text, pixel_width) per line
 
   def initialize(@bounds : BoundsData, @label_lines : Array({String, Int32}))
   end
@@ -24,7 +24,7 @@ end
 
 struct ArrowRenderData
   property waypoints : Array({Float32, Float32})
-  property bounds    : BoundsData
+  property bounds : BoundsData
 
   def initialize(@waypoints : Array({Float32, Float32}), @bounds : BoundsData)
   end

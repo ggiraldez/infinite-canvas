@@ -41,7 +41,7 @@ describe LayoutEngine do
     # ── TextRenderData ─────────────────────────────────────────────────────────
 
     it "returns TextRenderData for a text element" do
-      id    = UUID.random
+      id = UUID.random
       model = CanvasModel.new
       model.elements << TextModel.new(id, BoundsData.new(0_f32, 0_f32, 200_f32, 40_f32), "hello")
 
@@ -51,7 +51,7 @@ describe LayoutEngine do
     end
 
     it "positions a text element at its model coordinates" do
-      id    = UUID.random
+      id = UUID.random
       model = CanvasModel.new
       model.elements << TextModel.new(id, BoundsData.new(10_f32, 20_f32, 200_f32, 40_f32), "hi")
 
@@ -62,7 +62,7 @@ describe LayoutEngine do
     end
 
     it "sizes an empty text element around the cursor placeholder" do
-      id    = UUID.random
+      id = UUID.random
       model = CanvasModel.new
       model.elements << TextModel.new(id, BoundsData.new(0_f32, 0_f32, 100_f32, 40_f32), "")
 
@@ -76,7 +76,7 @@ describe LayoutEngine do
     end
 
     it "produces a single line_run when text fits on one line" do
-      id    = UUID.random
+      id = UUID.random
       model = CanvasModel.new
       # "hi" = 2*10 + 1*2 = 22 px wide with consistent stub (font_size=20, spacing=2)
       # content_w = 22+16 = 38; avail_w = 22 → full_w = 22 ≤ 22 → no wrap
@@ -89,7 +89,7 @@ describe LayoutEngine do
     end
 
     it "sets wraps=true and adjusts height for fixed_width text" do
-      id    = UUID.random
+      id = UUID.random
       model = CanvasModel.new
       # width=60, avail_w=44; "hello world"=11 chars → wraps
       model.elements << TextModel.new(id, BoundsData.new(0_f32, 0_f32, 60_f32, 40_f32),
@@ -104,7 +104,7 @@ describe LayoutEngine do
     end
 
     it "applies max_auto_width cap and sets wraps=true" do
-      id    = UUID.random
+      id = UUID.random
       model = CanvasModel.new
       # "hello world": content_w with consistent stub = (11*10 + 10*2) + 16 = 136;
       # cap = 80 < 136 → triggers auto-cap
@@ -118,7 +118,7 @@ describe LayoutEngine do
     end
 
     it "wraps multi-paragraph text and computes correct height" do
-      id    = UUID.random
+      id = UUID.random
       model = CanvasModel.new
       # Two paragraphs separated by \n, each long enough to wrap at cap=80.
       # "hello world\ngoodbye world" — both lines > 80px wide with stub.
@@ -136,7 +136,7 @@ describe LayoutEngine do
     # ── layout_text_element (public single-element entry point) ─────────────────
 
     it "layout_text_element produces the same result as layout for that element" do
-      id    = UUID.random
+      id = UUID.random
       model = CanvasModel.new
       model.elements << TextModel.new(id, BoundsData.new(5_f32, 10_f32, 200_f32, 40_f32), "hello")
 
@@ -154,7 +154,7 @@ describe LayoutEngine do
     # ── RectRenderData ─────────────────────────────────────────────────────────
 
     it "returns RectRenderData for a rect element" do
-      id    = UUID.random
+      id = UUID.random
       model = CanvasModel.new
       model.elements << RectModel.new(id, BoundsData.new(0_f32, 0_f32, 100_f32, 50_f32),
         ColorData.new(255_u8, 0_u8, 0_u8, 255_u8), ColorData.new(0_u8, 0_u8, 0_u8, 255_u8),
@@ -166,7 +166,7 @@ describe LayoutEngine do
     end
 
     it "preserves rect bounds unchanged" do
-      id    = UUID.random
+      id = UUID.random
       model = CanvasModel.new
       model.elements << RectModel.new(id, BoundsData.new(5_f32, 15_f32, 120_f32, 60_f32),
         ColorData.new(255_u8, 0_u8, 0_u8, 255_u8), ColorData.new(0_u8, 0_u8, 0_u8, 255_u8),
@@ -181,7 +181,7 @@ describe LayoutEngine do
     end
 
     it "builds label_lines with measured widths for each line" do
-      id    = UUID.random
+      id = UUID.random
       model = CanvasModel.new
       model.elements << RectModel.new(id, BoundsData.new(0_f32, 0_f32, 100_f32, 50_f32),
         ColorData.new(255_u8, 0_u8, 0_u8, 255_u8), ColorData.new(0_u8, 0_u8, 0_u8, 255_u8),
@@ -194,7 +194,7 @@ describe LayoutEngine do
     end
 
     it "returns a single empty label_line for an empty label" do
-      id    = UUID.random
+      id = UUID.random
       model = CanvasModel.new
       model.elements << RectModel.new(id, BoundsData.new(0_f32, 0_f32, 100_f32, 50_f32),
         ColorData.new(255_u8, 0_u8, 0_u8, 255_u8), ColorData.new(0_u8, 0_u8, 0_u8, 255_u8),
@@ -208,10 +208,10 @@ describe LayoutEngine do
     # ── ArrowRenderData ────────────────────────────────────────────────────────
 
     it "returns ArrowRenderData for an arrow element" do
-      from_id  = UUID.random
-      to_id    = UUID.random
+      from_id = UUID.random
+      to_id = UUID.random
       arrow_id = UUID.random
-      model    = CanvasModel.new
+      model = CanvasModel.new
       model.elements << RectModel.new(from_id, BoundsData.new(0_f32, 0_f32, 100_f32, 50_f32),
         ColorData.new(255_u8, 0_u8, 0_u8, 255_u8), ColorData.new(0_u8, 0_u8, 0_u8, 255_u8), 2_f32, "")
       model.elements << RectModel.new(to_id, BoundsData.new(200_f32, 0_f32, 100_f32, 50_f32),
@@ -228,10 +228,10 @@ describe LayoutEngine do
       # dx=200>0, dy=100>0 → Option A: exit Right, enter Top
       # single arrow → frac_src=frac_tgt=0.5 → exit_y=25, entry_x=250
       # Option A valid → [{100,25},{250,25},{250,100}]
-      from_id  = UUID.random
-      to_id    = UUID.random
+      from_id = UUID.random
+      to_id = UUID.random
       arrow_id = UUID.random
-      model    = CanvasModel.new
+      model = CanvasModel.new
       model.elements << RectModel.new(from_id, BoundsData.new(0_f32, 0_f32, 100_f32, 50_f32),
         ColorData.new(255_u8, 0_u8, 0_u8, 255_u8), ColorData.new(0_u8, 0_u8, 0_u8, 255_u8), 2_f32, "")
       model.elements << RectModel.new(to_id, BoundsData.new(200_f32, 100_f32, 100_f32, 50_f32),
@@ -246,10 +246,10 @@ describe LayoutEngine do
     it "produces straight waypoints for a straight-routed arrow" do
       # from=(0,0,100,50) centre=(50,25); to=(200,0,100,50) centre=(250,25)
       # straight_route: border exit right of from = (100,25), left of to = (200,25)
-      from_id  = UUID.random
-      to_id    = UUID.random
+      from_id = UUID.random
+      to_id = UUID.random
       arrow_id = UUID.random
-      model    = CanvasModel.new
+      model = CanvasModel.new
       model.elements << RectModel.new(from_id, BoundsData.new(0_f32, 0_f32, 100_f32, 50_f32),
         ColorData.new(255_u8, 0_u8, 0_u8, 255_u8), ColorData.new(0_u8, 0_u8, 0_u8, 255_u8), 2_f32, "")
       model.elements << RectModel.new(to_id, BoundsData.new(200_f32, 0_f32, 100_f32, 50_f32),
@@ -263,7 +263,7 @@ describe LayoutEngine do
 
     it "returns empty waypoints when an arrow endpoint is missing" do
       arrow_id = UUID.random
-      model    = CanvasModel.new
+      model = CanvasModel.new
       model.elements << ArrowModel.new(arrow_id, UUID.random, UUID.random)
 
       a = make_engine.layout(model)[arrow_id].as(ArrowRenderData)
@@ -280,12 +280,12 @@ describe LayoutEngine do
       # → Arrow→B gets rank 0: frac=1/3; Arrow→C gets rank 1: frac=2/3
       # Right-side exit: exit_y = A.y + frac * A.h = frac * 50
       # Arrow→B exit_y < Arrow→C exit_y  (spread ordering is correct)
-      a_id      = UUID.random
-      b_id      = UUID.random
-      c_id      = UUID.random
+      a_id = UUID.random
+      b_id = UUID.random
+      c_id = UUID.random
       arrow1_id = UUID.random
       arrow2_id = UUID.random
-      model     = CanvasModel.new
+      model = CanvasModel.new
       model.elements << RectModel.new(a_id, BoundsData.new(0_f32, 0_f32, 100_f32, 50_f32),
         ColorData.new(255_u8, 0_u8, 0_u8, 255_u8), ColorData.new(0_u8, 0_u8, 0_u8, 255_u8), 2_f32, "")
       model.elements << RectModel.new(b_id, BoundsData.new(200_f32, 0_f32, 100_f32, 50_f32),
@@ -308,10 +308,10 @@ describe LayoutEngine do
     end
 
     it "gives a single arrow on a side the centre fraction (0.5)" do
-      from_id  = UUID.random
-      to_id    = UUID.random
+      from_id = UUID.random
+      to_id = UUID.random
       arrow_id = UUID.random
-      model    = CanvasModel.new
+      model = CanvasModel.new
       # Pure horizontal: exits Right side at centre (y=25 = 50*0.5)
       model.elements << RectModel.new(from_id, BoundsData.new(0_f32, 0_f32, 100_f32, 50_f32),
         ColorData.new(255_u8, 0_u8, 0_u8, 255_u8), ColorData.new(0_u8, 0_u8, 0_u8, 255_u8), 2_f32, "")

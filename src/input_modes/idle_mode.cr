@@ -16,8 +16,8 @@ class IdleMode < InputMode
       canvas.select_element(nil)
       if (idx = canvas.hit_test_element(mouse_world)) && !canvas.elements[idx].is_a?(ArrowElement)
         src = canvas.elements[idx]
-        cx  = src.bounds.x + src.bounds.width / 2.0_f32
-        cy  = src.bounds.y + src.bounds.height / 2.0_f32
+        cx = src.bounds.x + src.bounds.width / 2.0_f32
+        cy = src.bounds.y + src.bounds.height / 2.0_f32
         ConnectingArrowMode.new(idx, R::Vector2.new(x: cx, y: cy), mouse_world, @cursor_tool)
       else
         self
@@ -53,7 +53,6 @@ class IdleMode < InputMode
       idx = canvas.selected_index.not_nil!
       canvas.commit_text_session_if_active
       ResizingElementMode.new(handle, mouse_world, canvas.elements[idx].bounds, @cursor_tool)
-
     elsif (idx = canvas.hit_test_element(mouse_world))
       was_editing_clicked = canvas.text_session_id == canvas.elements[idx].id
 
@@ -62,40 +61,38 @@ class IdleMode < InputMode
         idx -= 1 if removed_at && idx > removed_at
         canvas.toggle_element_in_selection(idx)
         IdleMode.new(@cursor_tool)
-
       elsif canvas.in_multi_selection?(idx)
         canvas.commit_text_session_if_active
         multi_starts = canvas.selected_indices.map { |i| canvas.elements[i].bounds }
         MovingElementsMode.new(mouse_world, nil, multi_starts, @cursor_tool)
-
       else
         removed_at = canvas.cleanup_empty_text_selection
         if removed_at == idx
           IdleMode.new(@cursor_tool)
         else
           idx -= 1 if removed_at && idx > removed_at
-          el          = canvas.elements[idx]
+          el = canvas.elements[idx]
           already_sel = canvas.selected_index == idx
           was_editing = canvas.text_session_id == el.id
           canvas.commit_text_session_if_active if already_sel
           canvas.select_element(idx)
 
           pending_enter_edit = case el
-          when TextElement
-            !was_editing || shift ||
-              (mouse_world.x >= el.bounds.x + TextElement::PADDING &&
-               mouse_world.x <= el.bounds.x + el.bounds.width - TextElement::PADDING &&
-               mouse_world.y >= el.bounds.y + TextElement::PADDING &&
-               mouse_world.y <= el.bounds.y + el.bounds.height - TextElement::PADDING)
-          when RectElement
-            if was_editing
-              canvas.hit_test_rect_label(el, mouse_world) || shift
-            else
-              already_sel || canvas.hit_test_rect_label(el, mouse_world)
-            end
-          else
-            false
-          end
+                               when TextElement
+                                 !was_editing || shift ||
+                                   (mouse_world.x >= el.bounds.x + TextElement::PADDING &&
+                                     mouse_world.x <= el.bounds.x + el.bounds.width - TextElement::PADDING &&
+                                     mouse_world.y >= el.bounds.y + TextElement::PADDING &&
+                                     mouse_world.y <= el.bounds.y + el.bounds.height - TextElement::PADDING)
+                               when RectElement
+                                 if was_editing
+                                   canvas.hit_test_rect_label(el, mouse_world) || shift
+                                 else
+                                   already_sel || canvas.hit_test_rect_label(el, mouse_world)
+                                 end
+                               else
+                                 false
+                               end
 
           double_click_done_at_press = false
           if is_double_click && was_editing && pending_enter_edit
@@ -112,19 +109,18 @@ class IdleMode < InputMode
           end
 
           PressingOnElementMode.new(
-            press_pos:                 mouse_world,
-            element_idx:               idx,
-            drag_start_bounds:         el.bounds,
-            pending_enter_edit:        pending_enter_edit,
-            pending_shift_click:       shift && was_editing,
-            pending_double_click:      is_double_click,
-            press_was_editing:         was_editing,
+            press_pos: mouse_world,
+            element_idx: idx,
+            drag_start_bounds: el.bounds,
+            pending_enter_edit: pending_enter_edit,
+            pending_shift_click: shift && was_editing,
+            pending_double_click: is_double_click,
+            press_was_editing: was_editing,
             double_click_done_at_press: double_click_done_at_press,
-            previous_cursor_tool:      @cursor_tool
+            previous_cursor_tool: @cursor_tool
           )
         end
       end
-
     else
       canvas.cleanup_empty_text_selection
       canvas.select_element(nil)

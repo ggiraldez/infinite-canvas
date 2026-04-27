@@ -42,9 +42,9 @@ describe RectModel do
   it "stores all fields" do
     id = UUID.random
     r = RectModel.new(id, bounds(1.0_f32, 2.0_f32, 80.0_f32, 60.0_f32),
-                      color(255_u8, 0_u8, 0_u8, 200_u8),
-                      color(0_u8, 0_u8, 255_u8, 255_u8),
-                      3.0_f32, "hello")
+      color(255_u8, 0_u8, 0_u8, 200_u8),
+      color(0_u8, 0_u8, 255_u8, 255_u8),
+      3.0_f32, "hello")
     r.id.should eq id
     r.label.should eq "hello"
     r.stroke_width.should eq 3.0_f32

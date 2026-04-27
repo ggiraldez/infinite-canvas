@@ -8,7 +8,7 @@ class PressingOnElementMode < InputMode
     @pending_double_click : Bool,
     @press_was_editing : Bool,
     @double_click_done_at_press : Bool,
-    @previous_cursor_tool : Canvas::CursorTool
+    @previous_cursor_tool : Canvas::CursorTool,
   ); end
 
   def on_mouse_press(canvas : Canvas, mouse_world : R::Vector2,
@@ -30,11 +30,11 @@ class PressingOnElementMode < InputMode
         if el.is_a?(TextElement) || el.is_a?(RectElement)
           canvas.text_session_id = el.id
           word_start = nil
-          word_end   = nil
+          word_end = nil
           if @double_click_done_at_press
             if (range = el.selection_range)
               word_start = range[0]
-              word_end   = range[1]
+              word_end = range[1]
             end
           else
             case el
@@ -71,7 +71,7 @@ class PressingOnElementMode < InputMode
       end
       TextEditingMode.new(el.id, @previous_cursor_tool)
     else
-      b  = el.bounds
+      b = el.bounds
       sb = @drag_start_bounds
       if b.x != sb.x || b.y != sb.y || b.width != sb.width || b.height != sb.height
         canvas.emit(MoveElementEvent.new(el.id, BoundsData.new(b.x, b.y, b.width, b.height)))

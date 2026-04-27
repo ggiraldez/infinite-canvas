@@ -20,7 +20,7 @@ class Canvas
   private def selection_rect(b : R::Rectangle, px : Float32 = 3.0_f32) : R::Rectangle
     exp = px / @camera.zoom
     R::Rectangle.new(x: b.x - exp, y: b.y - exp,
-                     width: b.width + exp * 2, height: b.height + exp * 2)
+      width: b.width + exp * 2, height: b.height + exp * 2)
   end
 
   private def draw_selection
@@ -55,9 +55,7 @@ class Canvas
     if el.resizable?
       half = (HANDLE_SIZE / 2.0_f32) / @camera.zoom
       hs = HANDLE_SIZE / @camera.zoom
-      handles = el.resizable_width_only? ?
-        handle_positions(bounds).select { |(h, _)| h.e? || h.w? } :
-        handle_positions(bounds)
+      handles = el.resizable_width_only? ? handle_positions(bounds).select { |(h, _)| h.e? || h.w? } : handle_positions(bounds)
       handles.each do |(_, center)|
         hr = R::Rectangle.new(x: center.x - half, y: center.y - half, width: hs, height: hs)
         R.draw_rectangle_rec(hr, R::WHITE)

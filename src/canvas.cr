@@ -14,8 +14,8 @@ require "./layout_engine"
 
 # Infinite canvas: owns the Camera2D, the element list, and input handling.
 class Canvas
-  GRID_SPACING     =  50.0_f32
-  SNAP_GRID        =  10.0_f32 # snap resolution: 5× finer than the drawn grid
+  GRID_SPACING     = 50.0_f32
+  SNAP_GRID        = 10.0_f32 # snap resolution: 5× finer than the drawn grid
   GRID_COLOR_MINOR = R::Color.new(r: 235, g: 235, b: 235, a: 255)
   GRID_COLOR_MAJOR = R::Color.new(r: 210, g: 210, b: 210, a: 255)
   BACKGROUND       = R::Color.new(r: 250, g: 250, b: 250, a: 255)
@@ -77,12 +77,12 @@ class Canvas
     (idx = @selected_index) ? @elements[idx]? : nil
   end
 
-  @renderer      : Renderer = Renderer.new
+  @renderer : Renderer = Renderer.new
   @layout_engine : LayoutEngine
-  @render_data   : RenderData
+  @render_data : RenderData
 
-  @selected_index    : Int32? = nil
-  @selected_indices  : Array(Int32) = [] of Int32
+  @selected_index : Int32? = nil
+  @selected_indices : Array(Int32) = [] of Int32
   # Set by external UI (e.g. toolbar) to suppress the canvas from processing a
   # left-press on the same frame — prevents a toolbar click from also acting on
   # whatever canvas content sits beneath it.
@@ -90,11 +90,11 @@ class Canvas
 
   # ── Event-sourcing state ──────────────────────────────────────────────────
   # @model is the authoritative canvas state; @elements is a derived cache.
-  @model   : CanvasModel
+  @model : CanvasModel
   @history : HistoryManager
 
   # UUID-based selection tracking — survives sync_elements_from_model rebuilds.
-  @selected_id  : UUID? = nil
+  @selected_id : UUID? = nil
   @selected_ids : Array(UUID) = [] of UUID
 
   # UUID of the element whose text is currently live-edited.
@@ -103,17 +103,17 @@ class Canvas
 
   # Coalescing buffer for consecutive character inserts (word-at-a-time undo).
   # Chars accumulate here until a word boundary is crossed, then one InsertTextEvent is emitted.
-  COALESCE_TIMEOUT    =  1.0_f64   # seconds — pause longer than this starts a new word group
-  @text_coalesce_id     : UUID?     = nil
-  @text_coalesce_pos    : Int32     = 0
-  @text_coalesce_text   : String    = ""
+  COALESCE_TIMEOUT = 1.0_f64 # seconds — pause longer than this starts a new word group
+  @text_coalesce_id : UUID? = nil
+  @text_coalesce_pos : Int32 = 0
+  @text_coalesce_text : String = ""
   @text_coalesce_bounds : BoundsData = BoundsData.new(0.0_f32, 0.0_f32, 0.0_f32, 0.0_f32)
-  @text_coalesce_time   : Float64   = 0.0
+  @text_coalesce_time : Float64 = 0.0
 
   # Double-click detection state.
-  DOUBLE_CLICK_TIME = 0.4_f64   # seconds
-  DOUBLE_CLICK_DIST = 5.0_f32   # screen pixels
-  @last_click_time   : Float64    = 0.0
+  DOUBLE_CLICK_TIME = 0.4_f64 # seconds
+  DOUBLE_CLICK_DIST = 5.0_f32 # screen pixels
+  @last_click_time : Float64 = 0.0
   @last_click_screen : R::Vector2 = R::Vector2.new(x: -999.0_f32, y: -999.0_f32)
 
   @quit_requested : Bool = false
@@ -126,11 +126,11 @@ class Canvas
   end
 
   def initialize(screen_width : Int32, screen_height : Int32)
-    @model         = CanvasModel.new
-    @history       = HistoryManager.new(@model)
-    @elements      = [] of Element
+    @model = CanvasModel.new
+    @history = HistoryManager.new(@model)
+    @elements = [] of Element
     @layout_engine = LayoutEngine.new(Proc(String, Int32, Int32).new { |t, fs| AppFont.measure(t, fs) })
-    @render_data   = RenderData.new
+    @render_data = RenderData.new
     @camera = R::Camera2D.new(
       offset: R::Vector2.new(x: screen_width / 2.0_f32, y: screen_height / 2.0_f32),
       target: R::Vector2.new(x: 0.0_f32, y: 0.0_f32),
@@ -149,7 +149,7 @@ class Canvas
   def load
     return unless File.exists?(SAVE_FILE)
     json_str = File.read(SAVE_FILE)
-    raw   = JSON.parse(json_str)
+    raw = JSON.parse(json_str)
     items = (raw["elements"]? || raw["rects"]?).try(&.as_a?) || return
 
     if items.first?.try { |e| e["bounds"]? }
@@ -215,7 +215,7 @@ class Canvas
       next unless rd.is_a?(ArrowRenderData)
       b = rd.bounds
       @renderer.draw_element(e, rd) if rd.waypoints.empty? || rects_overlap?(
-        R::Rectangle.new(x: b.x, y: b.y, width: b.w, height: b.h), viewport)
+                                         R::Rectangle.new(x: b.x, y: b.y, width: b.w, height: b.h), viewport)
     end
 
     # Non-arrow elements are culled against the viewport.
@@ -225,7 +225,7 @@ class Canvas
       next unless rd
       b = rd.bounds
       @renderer.draw_element(e, rd) if rects_overlap?(
-        R::Rectangle.new(x: b.x, y: b.y, width: b.w, height: b.h), viewport)
+                                         R::Rectangle.new(x: b.x, y: b.y, width: b.w, height: b.h), viewport)
     end
 
     draw_selection
@@ -263,9 +263,7 @@ class Canvas
           m.text, m.id, m.fixed_width
         ).as(Element)
       when ArrowModel
-        style = m.routing_style == "straight" ?
-          ArrowElement::RoutingStyle::Straight :
-          ArrowElement::RoutingStyle::Orthogonal
+        style = m.routing_style == "straight" ? ArrowElement::RoutingStyle::Straight : ArrowElement::RoutingStyle::Orthogonal
         ArrowElement.new(m.from_id, m.to_id, style, m.id).as(Element)
       end
     end
@@ -276,7 +274,7 @@ class Canvas
       @selected_index = found
       if found.nil?
         # Element was deleted — clear all selection state.
-        @selected_id     = nil
+        @selected_id = nil
         @text_session_id = nil
       end
     else
@@ -289,7 +287,7 @@ class Canvas
         idx = @elements.index { |e| e.id == id }
         idx ? {id, idx} : nil
       end
-      @selected_ids     = pairs.map { |(id, _)| id }
+      @selected_ids = pairs.map { |(id, _)| id }
       @selected_indices = pairs.map { |(_, idx)| idx }
     end
 
@@ -315,9 +313,9 @@ class Canvas
       rd = @render_data[e.id]?
       next unless rd.is_a?(TextRenderData)
       e.cached_line_runs = rd.line_runs
-      e.cached_wraps     = rd.wraps
+      e.cached_wraps = rd.wraps
       e.bounds = R::Rectangle.new(x: rd.bounds.x, y: rd.bounds.y,
-                                   width: rd.bounds.w, height: rd.bounds.h)
+        width: rd.bounds.w, height: rd.bounds.h)
     end
   end
 
@@ -341,17 +339,17 @@ class Canvas
       next unless rd
       bd = overrides[id]? || next
       @render_data[id] = case rd
-        when RectRenderData
-          RectRenderData.new(bd, rd.label_lines)
-        when TextRenderData
-          # Use the element's cached layout (kept current by refresh_element_layout
-          # during resize, or unchanged during move).
-          tel = @elements.find { |e| e.id == id }.as?(TextElement)
-          TextRenderData.new(bd,
-            tel.try(&.cached_line_runs) || rd.line_runs,
-            tel ? tel.cached_wraps : rd.wraps)
-        else rd
-        end
+                         when RectRenderData
+                           RectRenderData.new(bd, rd.label_lines)
+                         when TextRenderData
+                           # Use the element's cached layout (kept current by refresh_element_layout
+                           # during resize, or unchanged during move).
+                           tel = @elements.find { |e| e.id == id }.as?(TextElement)
+                           TextRenderData.new(bd,
+                             tel.try(&.cached_line_runs) || rd.line_runs,
+                             tel ? tel.cached_wraps : rd.wraps)
+                         else rd
+                         end
     end
 
     # Re-route arrows whose endpoints include a moved element.
@@ -392,9 +390,9 @@ class Canvas
       el.text, el.fixed_width, maw)
     rd = @layout_engine.layout_text_element(tmp)
     el.cached_line_runs = rd.line_runs
-    el.cached_wraps     = rd.wraps
+    el.cached_wraps = rd.wraps
     el.bounds = R::Rectangle.new(x: rd.bounds.x, y: rd.bounds.y,
-                                  width: rd.bounds.w, height: rd.bounds.h)
+      width: rd.bounds.w, height: rd.bounds.h)
     @render_data[el.id] = rd
     refresh_drag_preview([el.id])
   end
@@ -405,24 +403,24 @@ class Canvas
   # Does NOT call sync — the caller's emit will do that.
   # No-op when text is identical to the model (avoids spurious history entries).
   def commit_text_session_if_active : Nil
-    flush_text_coalesce          # emit any buffered chars before comparing to model
+    flush_text_coalesce # emit any buffered chars before comparing to model
     return unless (tid = @text_session_id)
-    @text_session_id = nil  # clear first so re-entrant calls are safe
+    @text_session_id = nil # clear first so re-entrant calls are safe
     return unless (idx = @selected_index) && idx < @elements.size
     el = @elements[idx]
     new_text = case el
                when TextElement then el.text
                when RectElement then el.label
-               else return
+               else                  return
                end
     # Skip if text matches the model's current state.
     model_text = case (m = @model.find_by_id(tid))
                  when TextModel then m.text
                  when RectModel then m.label
-                 else ""
+                 else                ""
                  end
     return if new_text == model_text
-    b     = el.bounds
+    b = el.bounds
     event = TextChangedEvent.new(tid, new_text, BoundsData.new(b.x, b.y, b.width, b.height), el.cursor_pos)
     apply(@model, event)
     @history.push(event)
@@ -460,7 +458,7 @@ class Canvas
           ColorData.new(e.fill), ColorData.new(e.stroke), e.stroke_width, e.label
         )
       when TextElement
-        b   = e.bounds
+        b = e.bounds
         maw = @model.find_by_id(e.id).try { |m| m.is_a?(TextModel) ? m.max_auto_width : nil }
         model.elements << TextModel.new(
           e.id, BoundsData.new(b.x, b.y, b.width, b.height),

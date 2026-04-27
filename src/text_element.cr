@@ -13,7 +13,7 @@ class TextElement < Element
   FONT_SIZE       = 20
   TEXT_COLOR      = R::Color.new(r: 30, g: 30, b: 30, a: 255)
   SELECTION_COLOR = R::Color.new(r: 66, g: 135, b: 245, a: 100)
-  PADDING         =  8  # padding on each side in world units
+  PADDING         = 8 # padding on each side in world units
 
   property text : String
   property fixed_width : Bool
@@ -104,7 +104,7 @@ class TextElement < Element
     runs.each_with_index do |(line_str, line_start), vi|
       next_start = vi + 1 < runs.size ? runs[vi + 1][1] : Int32::MAX
       if @cursor_pos >= line_start && @cursor_pos < next_start
-        col  = [@cursor_pos - line_start, line_str.chars.size].min
+        col = [@cursor_pos - line_start, line_str.chars.size].min
         x_px = AppFont.measure(line_str.chars[0...col].join, FONT_SIZE)
         return {vi, x_px}
       end

@@ -40,7 +40,7 @@ class Renderer
   private def draw_rect_label(el : RectElement, rd : RectRenderData)
     return if rd.label_lines.all? { |(line, _)| line.empty? }
     total_height = rd.label_lines.size * RectElement::LABEL_FONT_SIZE
-    start_y      = el.bounds.y + (el.bounds.height - total_height) / 2.0_f32
+    start_y = el.bounds.y + (el.bounds.height - total_height) / 2.0_f32
     rd.label_lines.each_with_index do |(line, tw), i|
       lx = (el.bounds.x + (el.bounds.width - tw) / 2.0_f32).to_i
       ly = (start_y + i * RectElement::LABEL_FONT_SIZE).to_i
@@ -50,16 +50,16 @@ class Renderer
 
   private def draw_rect_cursor(el : RectElement, rd : RectRenderData)
     all_lines = rd.label_lines
-    total_h   = all_lines.size * RectElement::LABEL_FONT_SIZE
+    total_h = all_lines.size * RectElement::LABEL_FONT_SIZE
 
     if (range = el.selection_range)
       el.selection_line_ranges(range[0], range[1]).each do |line_idx, col_start, col_end|
         line, full_tw = all_lines.fetch(line_idx, {"", 0})
-        chars   = line.chars
-        line_x  = el.bounds.x + (el.bounds.width - full_tw) / 2.0_f32
+        chars = line.chars
+        line_x = el.bounds.x + (el.bounds.width - full_tw) / 2.0_f32
         x1 = line_x + AppFont.measure(chars[0, col_start].join, RectElement::LABEL_FONT_SIZE)
         x2 = line_x + AppFont.measure(chars[0, col_end].join, RectElement::LABEL_FONT_SIZE)
-        y  = el.bounds.y + (el.bounds.height - total_h) / 2.0_f32 + line_idx * RectElement::LABEL_FONT_SIZE
+        y = el.bounds.y + (el.bounds.height - total_h) / 2.0_f32 + line_idx * RectElement::LABEL_FONT_SIZE
         R.draw_rectangle_rec(
           R::Rectangle.new(x: x1, y: y, width: x2 - x1, height: RectElement::LABEL_FONT_SIZE.to_f32),
           RectElement::SELECTION_COLOR)
@@ -67,7 +67,7 @@ class Renderer
     end
 
     return unless el.cursor_visible?
-    lines_b  = el.lines_before_cursor
+    lines_b = el.lines_before_cursor
     line_idx = lines_b.size - 1
     col_text = lines_b.last
     _, full_tw = all_lines.fetch(line_idx, {"", 0})
@@ -103,7 +103,7 @@ class Renderer
           next unless sel_line == line_idx
           x1 = el.bounds.x + TextElement::PADDING + AppFont.measure(chars[0, col_start].join, TextElement::FONT_SIZE)
           x2 = el.bounds.x + TextElement::PADDING + AppFont.measure(chars[0, col_end].join, TextElement::FONT_SIZE)
-          y  = el.bounds.y + TextElement::PADDING + line_idx * TextElement::FONT_SIZE
+          y = el.bounds.y + TextElement::PADDING + line_idx * TextElement::FONT_SIZE
           R.draw_rectangle_rec(
             R::Rectangle.new(x: x1, y: y, width: x2 - x1, height: TextElement::FONT_SIZE.to_f32),
             TextElement::SELECTION_COLOR)
@@ -112,7 +112,7 @@ class Renderer
     end
 
     return unless el.cursor_visible?
-    lines_b  = el.lines_before_cursor
+    lines_b = el.lines_before_cursor
     line_idx = lines_b.size - 1
     col_text = lines_b.last
     tw = AppFont.measure(col_text, TextElement::FONT_SIZE)
@@ -125,10 +125,10 @@ class Renderer
     if (range = el.selection_range)
       text_selection_ranges(range[0], range[1], rd.line_runs).each do |vi, col_start, col_end|
         line_str = rd.line_runs.fetch(vi, {"", 0})[0]
-        chars    = line_str.chars
+        chars = line_str.chars
         x1 = el.bounds.x + TextElement::PADDING + AppFont.measure(chars[0, col_start].join, TextElement::FONT_SIZE)
         x2 = el.bounds.x + TextElement::PADDING + AppFont.measure(chars[0, col_end].join, TextElement::FONT_SIZE)
-        y  = el.bounds.y + TextElement::PADDING + vi * TextElement::FONT_SIZE
+        y = el.bounds.y + TextElement::PADDING + vi * TextElement::FONT_SIZE
         R.draw_rectangle_rec(
           R::Rectangle.new(x: x1, y: y, width: x2 - x1, height: TextElement::FONT_SIZE.to_f32),
           TextElement::SELECTION_COLOR)
@@ -154,7 +154,7 @@ class Renderer
     line_runs.each_with_index do |(line_str, line_start), vi|
       next_start = vi + 1 < line_runs.size ? line_runs[vi + 1][1] : Int32::MAX
       if cursor_pos >= line_start && cursor_pos < next_start
-        col  = [cursor_pos - line_start, line_str.chars.size].min
+        col = [cursor_pos - line_start, line_str.chars.size].min
         x_px = AppFont.measure(line_str.chars[0...col].join, font_size)
         return {vi, x_px}
       end
@@ -168,10 +168,10 @@ class Renderer
     result = [] of {Int32, Int32, Int32}
     line_runs.each_with_index do |(line_str, line_start), vi|
       line_chars = line_str.chars.size
-      line_end   = line_start + line_chars
+      line_end = line_start + line_chars
       if sel_start <= line_end && sel_end > line_start
         col_start = [sel_start - line_start, 0].max
-        col_end   = [sel_end   - line_start, line_chars].min
+        col_end = [sel_end - line_start, line_chars].min
         result << {vi, col_start, col_end}
       end
     end
@@ -183,9 +183,9 @@ class Renderer
     return if pts.size < 2
     last = pts.last
     prev = pts[pts.size - 2]
-    adx  = last.x - prev.x
-    ady  = last.y - prev.y
-    len  = Math.sqrt(adx * adx + ady * ady).to_f32
+    adx = last.x - prev.x
+    ady = last.y - prev.y
+    len = Math.sqrt(adx * adx + ady * ady).to_f32
     return if len < 1.0_f32
     ux = adx / len
     uy = ady / len
@@ -196,13 +196,13 @@ class Renderer
     (pts.size - 2).times { |i| R.draw_line_ex(pts[i], pts[i + 1], width, color) }
     R.draw_line_ex(prev, shaft_tip, width, color)
 
-    px    = -uy
-    py    =  ux
-    tip   = last
-    left  = R::Vector2.new(x: shaft_tip.x + px * ArrowElement::ARROWHEAD_HALF,
-                            y: shaft_tip.y + py * ArrowElement::ARROWHEAD_HALF)
+    px = -uy
+    py = ux
+    tip = last
+    left = R::Vector2.new(x: shaft_tip.x + px * ArrowElement::ARROWHEAD_HALF,
+      y: shaft_tip.y + py * ArrowElement::ARROWHEAD_HALF)
     right = R::Vector2.new(x: shaft_tip.x - px * ArrowElement::ARROWHEAD_HALF,
-                            y: shaft_tip.y - py * ArrowElement::ARROWHEAD_HALF)
+      y: shaft_tip.y - py * ArrowElement::ARROWHEAD_HALF)
     R.draw_triangle(tip, right, left, color)
   end
 end

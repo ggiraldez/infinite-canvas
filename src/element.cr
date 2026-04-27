@@ -41,25 +41,39 @@ abstract class Element
 
   # Cursor movement — no-op in the base class; TextElement overrides these.
   def handle_cursor_left(shift : Bool = false); end
+
   def handle_cursor_right(shift : Bool = false); end
+
   def handle_cursor_word_left(shift : Bool = false); end
+
   def handle_cursor_word_right(shift : Bool = false); end
+
   def handle_cursor_up(shift : Bool = false); end
+
   def handle_cursor_down(shift : Bool = false); end
+
   # Returns the cursor character offset — 0 for non-editing elements.
-  def cursor_pos : Int32; 0; end
+  def cursor_pos : Int32
+    0
+  end
 
   # Returns the active selection range, or nil — no-op unless the element uses TextEditing.
-  def selection_range : {Int32, Int32}?; nil; end
+  def selection_range : {Int32, Int32}?
+    nil
+  end
 
   # Clears any active text selection — no-op unless the element uses TextEditing.
   def clear_selection; end
 
   # Returns the selected text as a String, or nil if there is no selection.
-  def handle_copy : String?; nil; end
+  def handle_copy : String?
+    nil
+  end
 
   # Cuts the selected text: returns it and deletes it, or nil if there is no selection.
-  def handle_cut : String?; nil; end
+  def handle_cut : String?
+    nil
+  end
 
   # Inserts text at the cursor, replacing any active selection.
   def handle_paste(text : String); end
@@ -75,7 +89,6 @@ abstract class Element
   def resizable_width_only? : Bool
     false
   end
-
 end
 
 require "./text_editing"

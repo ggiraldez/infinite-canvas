@@ -4,7 +4,7 @@ class TextSelectingMode < InputMode
     @session_element_id : UUID,
     @word_start : Int32?,
     @word_end : Int32?,
-    @previous_cursor_tool : Canvas::CursorTool
+    @previous_cursor_tool : Canvas::CursorTool,
   ); end
 
   def text_selecting? : Bool

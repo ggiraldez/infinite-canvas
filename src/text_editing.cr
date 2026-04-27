@@ -26,7 +26,7 @@ module TextEditing
   end
 
   def handle_char_input(ch : Char)
-    delete_selection                 # replace selection if one exists
+    delete_selection # replace selection if one exists
     chars = editing_text.chars
     chars.insert(@cursor_pos, ch)
     self.editing_text = chars.join
@@ -40,7 +40,7 @@ module TextEditing
   end
 
   def handle_backspace
-    if delete_selection              # delete selection if one exists
+    if delete_selection # delete selection if one exists
       @preferred_x = nil
       reset_blink
       return
@@ -77,8 +77,12 @@ module TextEditing
     return if @cursor_pos == 0
     chars = editing_text.chars
     pos = @cursor_pos
-    while pos > 0 && chars[pos - 1].whitespace?; pos -= 1; end
-    while pos > 0 && !chars[pos - 1].whitespace?; pos -= 1; end
+    while pos > 0 && chars[pos - 1].whitespace?
+      pos -= 1
+    end
+    while pos > 0 && !chars[pos - 1].whitespace?
+      pos -= 1
+    end
     self.editing_text = (chars[0...pos] + chars[@cursor_pos...chars.size]).join
     @cursor_pos = pos
     @preferred_x = nil
@@ -93,10 +97,14 @@ module TextEditing
     end
     chars = editing_text.chars
     return if @cursor_pos >= chars.size
-    pos  = @cursor_pos
+    pos = @cursor_pos
     size = chars.size
-    while pos < size && chars[pos].whitespace?; pos += 1; end
-    while pos < size && !chars[pos].whitespace?; pos += 1; end
+    while pos < size && chars[pos].whitespace?
+      pos += 1
+    end
+    while pos < size && !chars[pos].whitespace?
+      pos += 1
+    end
     self.editing_text = (chars[0...@cursor_pos] + chars[pos...size]).join
     @preferred_x = nil
     reset_blink
@@ -120,8 +128,12 @@ module TextEditing
     anchor_for_shift(shift)
     chars = editing_text.chars
     pos = @cursor_pos
-    while pos > 0 && chars[pos - 1].whitespace?; pos -= 1; end
-    while pos > 0 && !chars[pos - 1].whitespace?; pos -= 1; end
+    while pos > 0 && chars[pos - 1].whitespace?
+      pos -= 1
+    end
+    while pos > 0 && !chars[pos - 1].whitespace?
+      pos -= 1
+    end
     @cursor_pos = pos
     @preferred_x = nil
     reset_blink
@@ -132,8 +144,12 @@ module TextEditing
     chars = editing_text.chars
     pos = @cursor_pos
     size = chars.size
-    while pos < size && chars[pos].whitespace?; pos += 1; end
-    while pos < size && !chars[pos].whitespace?; pos += 1; end
+    while pos < size && chars[pos].whitespace?
+      pos += 1
+    end
+    while pos < size && !chars[pos].whitespace?
+      pos += 1
+    end
     @cursor_pos = pos
     @preferred_x = nil
     reset_blink
@@ -146,8 +162,8 @@ module TextEditing
     return if lines_b.size <= 1
     target_x = @preferred_x || AppFont.measure(lines_b.last, editing_font_size)
     @preferred_x = target_x
-    new_col     = nearest_col_for_x(lines_b[-2], target_x)
-    prefix      = lines_b[0...-2].sum(0) { |l| l.size + 1 }
+    new_col = nearest_col_for_x(lines_b[-2], target_x)
+    prefix = lines_b[0...-2].sum(0) { |l| l.size + 1 }
     @cursor_pos = prefix + new_col
     reset_blink
   end
@@ -155,14 +171,14 @@ module TextEditing
   def handle_cursor_down(shift : Bool = false)
     anchor_for_shift(shift)
     return if @cursor_pos == editing_text.chars.size
-    lines_b   = lines_before_cursor
+    lines_b = lines_before_cursor
     all_lines = editing_text.split('\n')
-    line_idx  = lines_b.size - 1
+    line_idx = lines_b.size - 1
     return if line_idx >= all_lines.size - 1
-    target_x  = @preferred_x || AppFont.measure(lines_b.last, editing_font_size)
+    target_x = @preferred_x || AppFont.measure(lines_b.last, editing_font_size)
     @preferred_x = target_x
-    new_col   = nearest_col_for_x(all_lines[line_idx + 1], target_x)
-    prefix    = (0..line_idx).sum { |i| all_lines[i].size + 1 }
+    new_col = nearest_col_for_x(all_lines[line_idx + 1], target_x)
+    prefix = (0..line_idx).sum { |i| all_lines[i].size + 1 }
     @cursor_pos = prefix + new_col
     reset_blink
   end
@@ -172,7 +188,7 @@ module TextEditing
   # cursor to whichever word boundary stretches the selection further.
   def select_word_at_cursor(extend_sel : Bool = false)
     chars = editing_text.chars
-    pos   = @cursor_pos.clamp(0, chars.size)
+    pos = @cursor_pos.clamp(0, chars.size)
 
     word_start = pos
     while word_start > 0 && !chars[word_start - 1].whitespace?
@@ -183,7 +199,7 @@ module TextEditing
       word_end += 1
     end
 
-    return if word_start == word_end  # cursor is on whitespace
+    return if word_start == word_end # cursor is on whitespace
 
     if extend_sel
       anchor = @selection_anchor || @cursor_pos
@@ -231,7 +247,6 @@ module TextEditing
     @cursor_pos += text.chars.size
     @preferred_x = nil
     reset_blink
-
   end
 
   # True when the cursor glyph should be drawn this frame.

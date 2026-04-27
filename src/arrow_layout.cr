@@ -9,38 +9,40 @@ alias ArrowLayoutData = Array(R::Vector2)
 # that dependency is replaced by the model layer.
 module ArrowLayout
   # Border side of a rectangle.
-  enum Side; Left; Right; Top; Bottom; end
+  enum Side
+    Left; Right; Top; Bottom
+  end
 
   # Predicts which border sides the arrow will use for *src* (exit) and *tgt*
   # (entry) given the centre-to-centre displacement (*dx*, *dy*).
   # Mirrors the Option A / Option B / fallback decision tree in ortho_route.
   def self.natural_sides(src : R::Rectangle, tgt : R::Rectangle,
-                          dx : Float32, dy : Float32) : {Side, Side}
-    sx = src.x + src.width  / 2.0_f32
+                         dx : Float32, dy : Float32) : {Side, Side}
+    sx = src.x + src.width / 2.0_f32
     sy = src.y + src.height / 2.0_f32
-    tx = tgt.x + tgt.width  / 2.0_f32
+    tx = tgt.x + tgt.width / 2.0_f32
     ty = tgt.y + tgt.height / 2.0_f32
 
     if dx.abs > 0.5_f32 && dy.abs > 0.5_f32
       # Option A: horizontal exit from src, vertical entry to tgt.
-      ex_a  = dx > 0 ? src.x + src.width : src.x
-      ey_a  = dy > 0 ? tgt.y : tgt.y + tgt.height
+      ex_a = dx > 0 ? src.x + src.width : src.x
+      ey_a = dy > 0 ? tgt.y : tgt.y + tgt.height
       seg1a = dx > 0 ? tx > ex_a : tx < ex_a
       seg2a = dy > 0 ? ey_a > sy : ey_a < sy
       if seg1a && seg2a
         from_s = dx > 0 ? Side::Right : Side::Left
-        to_s   = dy > 0 ? Side::Top   : Side::Bottom
+        to_s = dy > 0 ? Side::Top : Side::Bottom
         return {from_s, to_s}
       end
 
       # Option B: vertical exit from src, horizontal entry to tgt.
-      ey_b  = dy > 0 ? src.y + src.height : src.y
-      ex_b  = dx > 0 ? tgt.x : tgt.x + tgt.width
+      ey_b = dy > 0 ? src.y + src.height : src.y
+      ex_b = dx > 0 ? tgt.x : tgt.x + tgt.width
       seg1b = dy > 0 ? ty > ey_b : ty < ey_b
       seg2b = dx > 0 ? ex_b > sx : ex_b < sx
       if seg1b && seg2b
         from_s = dy > 0 ? Side::Bottom : Side::Top
-        to_s   = dx > 0 ? Side::Left   : Side::Right
+        to_s = dx > 0 ? Side::Left : Side::Right
         return {from_s, to_s}
       end
     end
@@ -56,7 +58,7 @@ module ArrowLayout
   # World-space point on *side* of *b* at position *frac* (0=start, 1=end).
   def self.exit_point_on_side(side : Side, b : R::Rectangle, frac : Float32) : R::Vector2
     case side
-    when Side::Left   then R::Vector2.new(x: b.x,           y: b.y + frac * b.height)
+    when Side::Left   then R::Vector2.new(x: b.x, y: b.y + frac * b.height)
     when Side::Right  then R::Vector2.new(x: b.x + b.width, y: b.y + frac * b.height)
     when Side::Top    then R::Vector2.new(x: b.x + frac * b.width, y: b.y)
     when Side::Bottom then R::Vector2.new(x: b.x + frac * b.width, y: b.y + b.height)

@@ -16,9 +16,9 @@ module TextLayout
   def self.compute(text : String, avail_width : Float32, font_size : Int32,
                    spacing : Int32? = nil,
                    &measure : String -> Int32) : TextLayoutData
-    avail_i     = [avail_width, 1.0_f32].max.to_i32
-    result      = [] of {String, Int32}
-    spacing     = spacing || (font_size / 10)
+    avail_i = [avail_width, 1.0_f32].max.to_i32
+    result = [] of {String, Int32}
+    spacing = spacing || (font_size / 10)
     full_offset = 0
 
     text.split('\n').each do |para|
@@ -29,18 +29,18 @@ module TextLayout
       end
 
       para_chars = para.chars
-      para_len   = para_chars.size
+      para_len = para_chars.size
 
       # One measure call per character; O(n) total for the paragraph.
       char_ws = para_chars.map { |c| measure.call(c.to_s) }
-      prefix  = Array(Int32).new(para_len + 1, 0)
+      prefix = Array(Int32).new(para_len + 1, 0)
       (0...para_len).each { |i| prefix[i + 1] = prefix[i] + char_ws[i] }
 
       line_start = 0
 
       while line_start < para_len
         remaining = para_len - line_start
-        full_w    = prefix[para_len] - prefix[line_start] + spacing * (remaining - 1)
+        full_w = prefix[para_len] - prefix[line_start] + spacing * (remaining - 1)
 
         if full_w <= avail_i
           # Everything remaining fits — emit and move to next paragraph.

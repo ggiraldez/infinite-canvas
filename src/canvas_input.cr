@@ -17,10 +17,10 @@ class Canvas
     world_before = R.get_screen_to_world_2d(mouse_screen, @camera)
 
     new_zoom = if wheel > 0
-      ZOOM_LEVELS.find { |z| z > @camera.zoom } || ZOOM_LEVELS.last
-    else
-      ZOOM_LEVELS.reverse.find { |z| z < @camera.zoom } || ZOOM_LEVELS.first
-    end
+                 ZOOM_LEVELS.find { |z| z > @camera.zoom } || ZOOM_LEVELS.last
+               else
+                 ZOOM_LEVELS.reverse.find { |z| z < @camera.zoom } || ZOOM_LEVELS.first
+               end
     @camera.zoom = new_zoom
 
     world_after = R.get_screen_to_world_2d(mouse_screen, @camera)
@@ -32,7 +32,7 @@ class Canvas
 
   private def handle_left_mouse
     mouse_screen = R.get_mouse_position
-    mouse_world  = R.get_screen_to_world_2d(mouse_screen, @camera)
+    mouse_world = R.get_screen_to_world_2d(mouse_screen, @camera)
 
     if R.mouse_button_pressed?(R::MouseButton::Left)
       if @block_mouse_press
@@ -41,9 +41,9 @@ class Canvas
       end
       now = R.get_time
       is_double_click = (now - @last_click_time) < DOUBLE_CLICK_TIME &&
-        (@last_click_screen.x - mouse_screen.x).abs < DOUBLE_CLICK_DIST &&
-        (@last_click_screen.y - mouse_screen.y).abs < DOUBLE_CLICK_DIST
-      @last_click_time   = now
+                        (@last_click_screen.x - mouse_screen.x).abs < DOUBLE_CLICK_DIST &&
+                        (@last_click_screen.y - mouse_screen.y).abs < DOUBLE_CLICK_DIST
+      @last_click_time = now
       @last_click_screen = mouse_screen
       @mode = @mode.on_mouse_press(self, mouse_world, mouse_screen, is_double_click)
     elsif R.mouse_button_down?(R::MouseButton::Left)
@@ -62,15 +62,15 @@ class Canvas
     id = el.id
 
     # Snapshot before any operations this frame.
-    text_before   = editing_text_for(el)
+    text_before = editing_text_for(el)
     cursor_before = el.cursor_pos
     had_selection = !el.selection_range.nil?
-    last_op       = :none  # :char | :backspace | :backspace_word | :paste | :cut | :cursor
+    last_op = :none # :char | :backspace | :backspace_word | :paste | :cut | :cursor
 
     # ── Char input ─────────────────────────────────────────────────────────────
     chars_typed = ""
     while (code = R.get_char_pressed) > 0
-      next if code == 13  # Enter is handled explicitly below; skip to avoid double-fire
+      next if code == 13 # Enter is handled explicitly below; skip to avoid double-fire
       chars_typed += code.chr.to_s
       el.handle_char_input(code.chr)
       last_op = :char
@@ -82,8 +82,8 @@ class Canvas
     end
 
     # ── Delete ─────────────────────────────────────────────────────────────────
-    ctrl  = R.key_down?(R::KeyboardKey::LeftControl) || R.key_down?(R::KeyboardKey::RightControl)
-    shift = R.key_down?(R::KeyboardKey::LeftShift)   || R.key_down?(R::KeyboardKey::RightShift)
+    ctrl = R.key_down?(R::KeyboardKey::LeftControl) || R.key_down?(R::KeyboardKey::RightControl)
+    shift = R.key_down?(R::KeyboardKey::LeftShift) || R.key_down?(R::KeyboardKey::RightShift)
 
     if R.key_pressed?(R::KeyboardKey::Backspace) || R.key_pressed_repeat?(R::KeyboardKey::Backspace)
       if ctrl
@@ -98,7 +98,9 @@ class Canvas
     # ── Clipboard ──────────────────────────────────────────────────────────────
     paste_text = nil
     if ctrl && R.key_pressed?(R::KeyboardKey::C)
-      if (copied = el.handle_copy); R.set_clipboard_text(copied); end
+      if (copied = el.handle_copy)
+        R.set_clipboard_text(copied)
+      end
     end
     if ctrl && R.key_pressed?(R::KeyboardKey::X)
       if (cut = el.handle_cut)
@@ -137,9 +139,9 @@ class Canvas
 
     return if last_op == :none
 
-    text_after  = editing_text_for(el)
-    b           = el.bounds
-    bounds_now  = BoundsData.new(b.x, b.y, b.width, b.height)
+    text_after = editing_text_for(el)
+    b = el.bounds
+    bounds_now = BoundsData.new(b.x, b.y, b.width, b.height)
     cursor_after = el.cursor_pos
 
     case last_op
@@ -150,19 +152,18 @@ class Canvas
         emit_text_event(TextChangedEvent.new(id, text_after, bounds_now, cursor_before)) if text_before != text_after
       else
         # Single char insert with no prior selection: coalesce into a word group.
-        ch        = chars_typed[0]
-        now       = R.get_time
+        ch = chars_typed[0]
+        now = R.get_time
         timed_out = now - @text_coalesce_time > COALESCE_TIMEOUT
-        boundary  = !@text_coalesce_text.empty? &&
-                    !ch.whitespace? && @text_coalesce_text[-1].whitespace?
+        boundary = !@text_coalesce_text.empty? &&
+                   !ch.whitespace? && @text_coalesce_text[-1].whitespace?
         flush_text_coalesce if @text_coalesce_id != id || timed_out || boundary
-        @text_coalesce_id     = id      if @text_coalesce_id.nil?
-        @text_coalesce_pos    = cursor_before if @text_coalesce_text.empty?
-        @text_coalesce_text  += ch.to_s
+        @text_coalesce_id = id if @text_coalesce_id.nil?
+        @text_coalesce_pos = cursor_before if @text_coalesce_text.empty?
+        @text_coalesce_text += ch.to_s
         @text_coalesce_bounds = bounds_now
-        @text_coalesce_time   = now
+        @text_coalesce_time = now
       end
-
     when :backspace
       flush_text_coalesce
       if text_before != text_after
@@ -172,11 +173,9 @@ class Canvas
           emit_text_event(DeleteTextEvent.new(id, cursor_after, cursor_before - cursor_after, bounds_now, cursor_before))
         end
       end
-
     when :backspace_word, :cut
       flush_text_coalesce
       emit_text_event(TextChangedEvent.new(id, text_after, bounds_now, cursor_before)) if text_before != text_after
-
     when :paste
       flush_text_coalesce
       if text_before != text_after
@@ -187,9 +186,8 @@ class Canvas
           emit_text_event(InsertTextEvent.new(id, cursor_before, pt, bounds_now))
         end
       end
-
     when :cursor
-      flush_text_coalesce  # cursor movement is always a word boundary
+      flush_text_coalesce # cursor movement is always a word boundary
     end
   end
 
@@ -202,14 +200,14 @@ class Canvas
       el = @elements[idx]
       case el
       when TextElement, RectElement
-        text_before   = editing_text_for(el)
-        cursor_start  = el.cursor_pos
+        text_before = editing_text_for(el)
+        cursor_start = el.cursor_pos
         had_selection = !el.selection_range.nil?
         ctrl ? el.handle_forward_delete_word : el.handle_forward_delete
         refresh_element_layout(el)
         text_after = editing_text_for(el)
         if text_before != text_after
-          b  = el.bounds
+          b = el.bounds
           bd = BoundsData.new(b.x, b.y, b.width, b.height)
           flush_text_coalesce
           if had_selection || ctrl
@@ -224,10 +222,10 @@ class Canvas
       events = @selected_indices.map { |i| DeleteElementEvent.new(@elements[i].id) }
       events.each { |ev| apply(@model, ev); @history.push(ev) }
       @selected_indices = [] of Int32
-      @selected_ids     = [] of UUID
+      @selected_ids = [] of UUID
       sync_elements_from_model
     elsif (idx = @selected_index)
-      @text_session_id = nil  # discard any text session — element is gone
+      @text_session_id = nil # discard any text session — element is gone
       emit(DeleteElementEvent.new(@elements[idx].id))
     end
   end
@@ -246,9 +244,9 @@ class Canvas
         el = @elements.find { |e| e.id == sid }
         if el.is_a?(TextElement)
           el.cached_line_runs = rd.line_runs
-          el.cached_wraps     = rd.wraps
+          el.cached_wraps = rd.wraps
           el.bounds = R::Rectangle.new(x: rd.bounds.x, y: rd.bounds.y,
-                                        width: rd.bounds.w, height: rd.bounds.h)
+            width: rd.bounds.w, height: rd.bounds.h)
         end
       end
     end
@@ -259,8 +257,8 @@ class Canvas
     return if @text_coalesce_text.empty?
     id = @text_coalesce_id || return
     emit_text_event(InsertTextEvent.new(id, @text_coalesce_pos,
-                      @text_coalesce_text, @text_coalesce_bounds))
-    @text_coalesce_id   = nil
+      @text_coalesce_text, @text_coalesce_bounds))
+    @text_coalesce_id = nil
     @text_coalesce_text = ""
   end
 
@@ -309,9 +307,9 @@ class Canvas
     else
       commit_text_session_if_active
       return unless (restored = @history.undo)
-      @model           = restored
+      @model = restored
       @text_session_id = nil
-      @mode            = IdleMode.new(cursor_tool)
+      @mode = IdleMode.new(cursor_tool)
       sync_elements_from_model
     end
   end
@@ -331,9 +329,9 @@ class Canvas
     else
       commit_text_session_if_active
       return unless (restored = @history.redo)
-      @model           = restored
+      @model = restored
       @text_session_id = nil
-      @mode            = IdleMode.new(cursor_tool)
+      @mode = IdleMode.new(cursor_tool)
       sync_elements_from_model
     end
   end
@@ -385,18 +383,18 @@ class Canvas
   private def handle_tool_switch
     return if @selected_index
     tool = if R.key_pressed?(R::KeyboardKey::S)
-      CursorTool::Selection
-    elsif R.key_pressed?(R::KeyboardKey::R)
-      CursorTool::Rect
-    elsif R.key_pressed?(R::KeyboardKey::T)
-      CursorTool::Text
-    elsif R.key_pressed?(R::KeyboardKey::A)
-      CursorTool::Arrow
-    else
-      return
-    end
+             CursorTool::Selection
+           elsif R.key_pressed?(R::KeyboardKey::R)
+             CursorTool::Rect
+           elsif R.key_pressed?(R::KeyboardKey::T)
+             CursorTool::Text
+           elsif R.key_pressed?(R::KeyboardKey::A)
+             CursorTool::Arrow
+           else
+             return
+           end
     @selected_indices = [] of Int32
-    @selected_ids     = [] of UUID
+    @selected_ids = [] of UUID
     @mode = IdleMode.new(tool)
   end
 
@@ -411,12 +409,12 @@ class Canvas
       commit_text_session_if_active
       @elements[old_idx].clear_selection if old_idx && old_idx < @elements.size
       if new_idx && (el = @elements[new_idx]?)
-        @selected_index  = new_idx
-        @selected_id     = el.id
+        @selected_index = new_idx
+        @selected_id = el.id
         @text_session_id = nil
       else
-        @selected_index  = nil
-        @selected_id     = nil
+        @selected_index = nil
+        @selected_id = nil
         @text_session_id = nil
       end
     end
@@ -427,11 +425,11 @@ class Canvas
     old_idx = @selected_index
     commit_text_session_if_active
     @elements[old_idx].clear_selection if old_idx && old_idx < @elements.size
-    @selected_index  = nil
-    @selected_id     = nil
+    @selected_index = nil
+    @selected_id = nil
     @text_session_id = nil
     @selected_indices = indices
-    @selected_ids     = indices.compact_map { |i| @elements[i]?.try(&.id) }
+    @selected_ids = indices.compact_map { |i| @elements[i]?.try(&.id) }
   end
 
   # Adds *click_idx* to the current selection, or removes it if already present.
@@ -440,12 +438,12 @@ class Canvas
   def toggle_element_in_selection(click_idx : Int32)
     commit_text_session_if_active
     current = if multi_selected?
-      @selected_indices.dup
-    elsif (si = @selected_index)
-      [si]
-    else
-      [] of Int32
-    end
+                @selected_indices.dup
+              elsif (si = @selected_index)
+                [si]
+              else
+                [] of Int32
+              end
     if current.includes?(click_idx)
       current.delete(click_idx)
     else
@@ -473,7 +471,7 @@ class Canvas
   # Clears multi-selection without affecting single selection.
   def clear_multi_selection : Nil
     @selected_indices = [] of Int32
-    @selected_ids     = [] of UUID
+    @selected_ids = [] of UUID
   end
 
   # Snaps *v* to the nearest snap-grid line.
@@ -496,7 +494,7 @@ class Canvas
     el = @elements[idx]
     return nil unless el.is_a?(TextElement) && el.text.empty?
     removed_at = idx
-    @text_session_id = nil  # discard empty session without committing
+    @text_session_id = nil # discard empty session without committing
     emit(DeleteElementEvent.new(el.id))
     # After emit+sync: @selected_index and @selected_id are nil (element not found).
     removed_at
@@ -512,7 +510,7 @@ class Canvas
     lines = rd.label_lines
     return false if lines.empty? || lines.all? { |(text, _)| text.empty? }
     total_h = (lines.size * RectElement::LABEL_FONT_SIZE).to_f32
-    max_w   = lines.map { |(_, w)| w.to_f32 }.max
+    max_w = lines.map { |(_, w)| w.to_f32 }.max
     cx = el.bounds.x + el.bounds.width / 2.0_f32
     cy = el.bounds.y + el.bounds.height / 2.0_f32
     mouse_world.x >= cx - max_w / 2.0_f32 && mouse_world.x <= cx + max_w / 2.0_f32 &&
@@ -522,13 +520,13 @@ class Canvas
   def hit_test_element(mouse_world : R::Vector2) : Int32?
     arrow_threshold = 6.0_f32 / @camera.zoom
     (@elements.size - 1).downto(0) do |i|
-      el  = @elements[i]
+      el = @elements[i]
       hit = if el.is_a?(ArrowElement)
-        rd = @render_data[el.id]?
-        rd.is_a?(ArrowRenderData) && arrow_near_point?(rd.waypoints, mouse_world, arrow_threshold)
-      else
-        el.contains?(mouse_world)
-      end
+              rd = @render_data[el.id]?
+              rd.is_a?(ArrowRenderData) && arrow_near_point?(rd.waypoints, mouse_world, arrow_threshold)
+            else
+              el.contains?(mouse_world)
+            end
       return i if hit
     end
     nil
@@ -536,7 +534,7 @@ class Canvas
 
   private def arrow_near_point?(waypoints : Array({Float32, Float32}), p : R::Vector2, threshold : Float32) : Bool
     (waypoints.size - 1).times.any? do |i|
-      a = R::Vector2.new(x: waypoints[i][0],     y: waypoints[i][1])
+      a = R::Vector2.new(x: waypoints[i][0], y: waypoints[i][1])
       b = R::Vector2.new(x: waypoints[i + 1][0], y: waypoints[i + 1][1])
       segment_dist(p, a, b) <= threshold
     end
@@ -562,9 +560,7 @@ class Canvas
     el = @elements[idx]
     return nil unless el.resizable?
     half = (HANDLE_SIZE / 2.0_f32) / @camera.zoom
-    handles = el.resizable_width_only? ?
-      handle_positions(el.bounds).select { |(h, _)| h.e? || h.w? } :
-      handle_positions(el.bounds)
+    handles = el.resizable_width_only? ? handle_positions(el.bounds).select { |(h, _)| h.e? || h.w? } : handle_positions(el.bounds)
     handles.each do |(handle, center)|
       return handle if (mouse_world.x - center.x).abs <= half &&
                        (mouse_world.y - center.y).abs <= half

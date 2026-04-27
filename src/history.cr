@@ -23,7 +23,7 @@ class HistoryManager
 
   def initialize(initial_model : CanvasModel = CanvasModel.new)
     @checkpoint = serialize(initial_model)
-    @event_log  = [] of CanvasEvent
+    @event_log = [] of CanvasEvent
     @redo_stack = [] of CanvasEvent
   end
 

@@ -4,11 +4,11 @@ require "./app_font"
 class RectElement < Element
   include TextEditing
 
-  LABEL_FONT_SIZE  = 20
+  LABEL_FONT_SIZE     = 20
   DEFAULT_LABEL_COLOR = R::Color.new(r: 255, g: 255, b: 255, a: 230)
-  SELECTION_COLOR  = R::Color.new(r: 255, g: 255, b: 255, a: 70)
-  LABEL_PADDING_H  = 16  # minimum horizontal padding on each side
-  LABEL_PADDING_V  = 12  # minimum vertical padding on each side
+  SELECTION_COLOR     = R::Color.new(r: 255, g: 255, b: 255, a: 70)
+  LABEL_PADDING_H     = 16 # minimum horizontal padding on each side
+  LABEL_PADDING_V     = 12 # minimum vertical padding on each side
 
   property fill : R::Color
   property stroke : R::Color
@@ -29,8 +29,8 @@ class RectElement < Element
   end
 
   def min_size : {Float32, Float32}
-    lines  = @label.split('\n')
-    max_w  = lines.map { |l| AppFont.measure(l, LABEL_FONT_SIZE) }.max? || 0
+    lines = @label.split('\n')
+    max_w = lines.map { |l| AppFont.measure(l, LABEL_FONT_SIZE) }.max? || 0
     total_h = lines.size * LABEL_FONT_SIZE
     {(max_w + LABEL_PADDING_H * 2).to_f32, (total_h + LABEL_PADDING_V * 2).to_f32}
   end
