@@ -56,9 +56,7 @@ module InfiniteCanvas
 
   private def self.draw_hud(canvas : Canvas, toolbar : Toolbar, smooth_update_ms : Float64, smooth_draw_ms : Float64)
     toolbar.draw(canvas)
-    undo_hint = canvas.can_undo? ? "Ctrl+Z" : "Ctrl+Z (nothing)"
-    redo_hint = canvas.can_redo? ? "Ctrl+Y" : "Ctrl+Y (nothing)"
-    R.draw_text("Elements: #{canvas.elements.size}   Zoom: #{canvas.camera.zoom.round(2)}x   |   Undo: #{undo_hint}   Redo: #{redo_hint}", 12, 12, 20, R::GRAY)
+    R.draw_text("Elements: #{canvas.elements.size}   Zoom: #{canvas.camera.zoom.round(2)}x", 12, 12, 20, R::GRAY)
     if (el = canvas.selected_element).is_a?(ArrowElement)
       R.draw_text("Routing: #{el.routing_style}   [Tab]", 12, 36, 20, R::DARKGRAY)
     end

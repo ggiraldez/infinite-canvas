@@ -187,6 +187,14 @@ class Canvas
     @history.can_redo?
   end
 
+  def undo
+    perform_undo
+  end
+
+  def redo
+    perform_redo
+  end
+
   def draw
     R.begin_mode_2d(@camera)
     draw_grid
