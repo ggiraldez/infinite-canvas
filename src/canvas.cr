@@ -63,6 +63,15 @@ class Canvas
     @mode.cursor_tool || CursorTool::Selection
   end
 
+  def switch_tool(tool : CursorTool)
+    select_element(nil)
+    @mode = IdleMode.new(tool)
+  end
+
+  def block_mouse_press
+    @block_mouse_press = true
+  end
+
   def selected_element : Element?
     (idx = @selected_index) ? @elements[idx]? : nil
   end
@@ -71,8 +80,12 @@ class Canvas
   @layout_engine : LayoutEngine
   @render_data   : RenderData
 
-  @selected_index   : Int32? = nil
-  @selected_indices : Array(Int32) = [] of Int32
+  @selected_index    : Int32? = nil
+  @selected_indices  : Array(Int32) = [] of Int32
+  # Set by external UI (e.g. toolbar) to suppress the canvas from processing a
+  # left-press on the same frame — prevents a toolbar click from also acting on
+  # whatever canvas content sits beneath it.
+  @block_mouse_press : Bool = false
 
   # ── Event-sourcing state ──────────────────────────────────────────────────
   # @model is the authoritative canvas state; @elements is a derived cache.

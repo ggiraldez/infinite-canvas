@@ -1,5 +1,6 @@
 require "raylib-cr"
 require "./canvas"
+require "./toolbar"
 
 module InfiniteCanvas
   VERSION = "0.1.0"
@@ -17,6 +18,8 @@ module InfiniteCanvas
     canvas = Canvas.new(WINDOW_WIDTH, WINDOW_HEIGHT)
     canvas.load
 
+    toolbar = Toolbar.new
+
     smooth_update_ms = 0.0_f64
     smooth_draw_ms   = 0.0_f64
 
@@ -28,12 +31,13 @@ module InfiniteCanvas
         y: R.get_screen_height / 2.0_f32,
       )
 
+      toolbar.update(canvas)
       smooth_update_ms = timed_ema(smooth_update_ms) { canvas.update }
 
       R.begin_drawing
       R.clear_background(Canvas::BACKGROUND)
       smooth_draw_ms = timed_ema(smooth_draw_ms) { canvas.draw }
-      draw_hud(canvas, smooth_update_ms, smooth_draw_ms)
+      draw_hud(canvas, toolbar, smooth_update_ms, smooth_draw_ms)
       R.end_drawing
     end
 
@@ -50,13 +54,13 @@ module InfiniteCanvas
     smooth * 0.9 + ms * 0.1
   end
 
-  private def self.draw_hud(canvas : Canvas, smooth_update_ms : Float64, smooth_draw_ms : Float64)
-    R.draw_text("Tools: [S]elect  [R]ect  [T]ext  [A]rrow   active: #{canvas.cursor_tool}   |   Delete: Del", 12, 12, 20, R::DARKGRAY)
+  private def self.draw_hud(canvas : Canvas, toolbar : Toolbar, smooth_update_ms : Float64, smooth_draw_ms : Float64)
+    toolbar.draw(canvas)
     undo_hint = canvas.can_undo? ? "Ctrl+Z" : "Ctrl+Z (nothing)"
     redo_hint = canvas.can_redo? ? "Ctrl+Y" : "Ctrl+Y (nothing)"
-    R.draw_text("Pan: right/middle-drag   Zoom: wheel   Elements: #{canvas.elements.size}   Zoom: #{canvas.camera.zoom.round(2)}x   |   Undo: #{undo_hint}   Redo: #{redo_hint}", 12, 36, 20, R::GRAY)
+    R.draw_text("Elements: #{canvas.elements.size}   Zoom: #{canvas.camera.zoom.round(2)}x   |   Undo: #{undo_hint}   Redo: #{redo_hint}", 12, 12, 20, R::GRAY)
     if (el = canvas.selected_element).is_a?(ArrowElement)
-      R.draw_text("Arrow routing: #{el.routing_style}   [Tab] to toggle", 12, 60, 20, R::DARKGRAY)
+      R.draw_text("Routing: #{el.routing_style}   [Tab]", 12, 36, 20, R::DARKGRAY)
     end
     timing_label = "update: #{smooth_update_ms.round(2)}ms  draw: #{smooth_draw_ms.round(2)}ms"
     label_w = R.measure_text(timing_label, 20)

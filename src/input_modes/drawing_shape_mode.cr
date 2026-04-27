@@ -3,6 +3,10 @@ class DrawingShapeMode < InputMode
     @draw_current = @draw_start
   end
 
+  def cursor_tool : Canvas::CursorTool?
+    @variant
+  end
+
   def draft_rect : {R::Vector2, R::Vector2}?
     {@draw_start, @draw_current}
   end

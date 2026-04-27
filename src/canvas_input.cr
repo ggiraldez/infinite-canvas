@@ -35,6 +35,10 @@ class Canvas
     mouse_world  = R.get_screen_to_world_2d(mouse_screen, @camera)
 
     if R.mouse_button_pressed?(R::MouseButton::Left)
+      if @block_mouse_press
+        @block_mouse_press = false
+        return
+      end
       now = R.get_time
       is_double_click = (now - @last_click_time) < DOUBLE_CLICK_TIME &&
         (@last_click_screen.x - mouse_screen.x).abs < DOUBLE_CLICK_DIST &&

@@ -6,6 +6,10 @@ class ConnectingArrowMode < InputMode
     @previous_cursor_tool : Canvas::CursorTool
   ); end
 
+  def cursor_tool : Canvas::CursorTool?
+    @previous_cursor_tool
+  end
+
   def draft_arrow_line : {R::Vector2, R::Vector2}?
     {@draw_start, @draw_current}
   end
