@@ -1,6 +1,7 @@
 require "raylib-cr"
 require "./canvas"
 require "./toolbar"
+require "./color_palette"
 
 module InfiniteCanvas
   VERSION = "0.1.0"
@@ -18,7 +19,8 @@ module InfiniteCanvas
     canvas = Canvas.new(WINDOW_WIDTH, WINDOW_HEIGHT)
     canvas.load
 
-    toolbar = Toolbar.new
+    toolbar  = Toolbar.new
+    palette  = ColorPalette.new
 
     smooth_update_ms = 0.0_f64
     smooth_draw_ms   = 0.0_f64
@@ -31,13 +33,14 @@ module InfiniteCanvas
         y: R.get_screen_height / 2.0_f32,
       )
 
+      palette.update(canvas)
       toolbar.update(canvas)
       smooth_update_ms = timed_ema(smooth_update_ms) { canvas.update }
 
       R.begin_drawing
       R.clear_background(Canvas::BACKGROUND)
       smooth_draw_ms = timed_ema(smooth_draw_ms) { canvas.draw }
-      draw_hud(canvas, toolbar, smooth_update_ms, smooth_draw_ms)
+      draw_hud(canvas, toolbar, palette, smooth_update_ms, smooth_draw_ms)
       R.end_drawing
     end
 
@@ -54,8 +57,9 @@ module InfiniteCanvas
     smooth * 0.9 + ms * 0.1
   end
 
-  private def self.draw_hud(canvas : Canvas, toolbar : Toolbar, smooth_update_ms : Float64, smooth_draw_ms : Float64)
+  private def self.draw_hud(canvas : Canvas, toolbar : Toolbar, palette : ColorPalette, smooth_update_ms : Float64, smooth_draw_ms : Float64)
     toolbar.draw(canvas)
+    palette.draw(canvas)
     R.draw_text("Elements: #{canvas.elements.size}   Zoom: #{canvas.camera.zoom.round(2)}x", 12, 12, 20, R::GRAY)
     if (el = canvas.selected_element).is_a?(ArrowElement)
       R.draw_text("Routing: #{el.routing_style}   [Tab]", 12, 36, 20, R::DARKGRAY)

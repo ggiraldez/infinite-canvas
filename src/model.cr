@@ -61,10 +61,12 @@ class RectModel < ElementModel
   property stroke : ColorData
   property stroke_width : Float32
   property label : String
+  property label_color : ColorData = ColorData.new(255_u8, 255_u8, 255_u8, 230_u8)
 
   def initialize(@id : UUID, @bounds : BoundsData,
                  @fill : ColorData, @stroke : ColorData,
-                 @stroke_width : Float32, @label : String)
+                 @stroke_width : Float32, @label : String,
+                 @label_color : ColorData = ColorData.new(255_u8, 255_u8, 255_u8, 230_u8))
     super(@id, @bounds)
   end
 end

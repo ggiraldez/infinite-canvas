@@ -62,6 +62,15 @@ def apply(model : CanvasModel, event : CanvasEvent) : CanvasModel
       end
     end
 
+  when ChangeRectColorEvent
+    model.find_by_id(event.id).try do |e|
+      if e.is_a?(RectModel)
+        e.fill        = event.fill
+        e.stroke      = event.stroke
+        e.label_color = event.label_color
+      end
+    end
+
   when ArrowRoutingChangedEvent
     model.find_by_id(event.id).try do |e|
       if e.is_a?(ArrowModel)

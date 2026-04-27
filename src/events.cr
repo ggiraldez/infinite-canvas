@@ -83,6 +83,15 @@ class TextChangedEvent < CanvasEvent
   def initialize(@id : UUID, @new_text : String, @new_bounds : BoundsData, @cursor_before : Int32 = 0); end
 end
 
+class ChangeRectColorEvent < CanvasEvent
+  property id : UUID
+  property fill : ColorData
+  property stroke : ColorData
+  property label_color : ColorData
+
+  def initialize(@id : UUID, @fill : ColorData, @stroke : ColorData, @label_color : ColorData); end
+end
+
 class ArrowRoutingChangedEvent < CanvasEvent
   property id : UUID
   property new_style : String

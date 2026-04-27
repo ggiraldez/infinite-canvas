@@ -252,7 +252,8 @@ class Canvas
         b = m.bounds
         RectElement.new(
           R::Rectangle.new(x: b.x, y: b.y, width: b.w, height: b.h),
-          m.fill.to_raylib, m.stroke.to_raylib, m.stroke_width, m.label, m.id
+          m.fill.to_raylib, m.stroke.to_raylib, m.stroke_width, m.label, m.id,
+          m.label_color.to_raylib
         ).as(Element)
       when TextModel
         b = m.bounds

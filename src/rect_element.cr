@@ -4,7 +4,7 @@ class RectElement < Element
   include TextEditing
 
   LABEL_FONT_SIZE  = 20
-  LABEL_COLOR      = R::Color.new(r: 255, g: 255, b: 255, a: 230)
+  DEFAULT_LABEL_COLOR = R::Color.new(r: 255, g: 255, b: 255, a: 230)
   SELECTION_COLOR  = R::Color.new(r: 255, g: 255, b: 255, a: 70)
   LABEL_PADDING_H  = 16  # minimum horizontal padding on each side
   LABEL_PADDING_V  = 12  # minimum vertical padding on each side
@@ -13,6 +13,7 @@ class RectElement < Element
   property stroke : R::Color
   property stroke_width : Float32
   property label : String
+  property label_color : R::Color
 
   def editing_text : String
     @label
@@ -71,7 +72,8 @@ class RectElement < Element
                  @stroke : R::Color = R::Color.new(r: 30, g: 60, b: 120, a: 255),
                  @stroke_width : Float32 = 2.0_f32,
                  @label : String = "",
-                 id : UUID = UUID.random)
+                 id : UUID = UUID.random,
+                 @label_color : R::Color = DEFAULT_LABEL_COLOR)
     super(bounds, id)
     init_cursor
   end

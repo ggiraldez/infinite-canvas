@@ -43,7 +43,7 @@ class Renderer
     rd.label_lines.each_with_index do |(line, tw), i|
       lx = (el.bounds.x + (el.bounds.width - tw) / 2.0_f32).to_i
       ly = (start_y + i * RectElement::LABEL_FONT_SIZE).to_i
-      R.draw_text(line, lx, ly, RectElement::LABEL_FONT_SIZE, RectElement::LABEL_COLOR)
+      R.draw_text(line, lx, ly, RectElement::LABEL_FONT_SIZE, el.label_color)
     end
   end
 
@@ -73,7 +73,7 @@ class Renderer
     col_tw = R.measure_text(col_text, RectElement::LABEL_FONT_SIZE)
     cx = (el.bounds.x + (el.bounds.width - full_tw) / 2.0_f32 + col_tw).to_i
     cy = (el.bounds.y + (el.bounds.height - total_h) / 2.0_f32 + line_idx * RectElement::LABEL_FONT_SIZE).to_i
-    R.draw_text("|", cx, cy, RectElement::LABEL_FONT_SIZE, RectElement::LABEL_COLOR)
+    R.draw_text("|", cx, cy, RectElement::LABEL_FONT_SIZE, el.label_color)
   end
 
   private def draw_text(el : TextElement, rd : TextRenderData)
