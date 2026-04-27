@@ -56,6 +56,14 @@ class HistoryManager
     !@redo_stack.empty?
   end
 
+  def last_event : CanvasEvent?
+    @event_log.last?
+  end
+
+  def last_redo_event : CanvasEvent?
+    @redo_stack.last?
+  end
+
   # Reset history to a new base model (call after loading from disk).
   def reset(model : CanvasModel) : Nil
     @checkpoint = serialize(model)

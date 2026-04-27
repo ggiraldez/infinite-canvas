@@ -143,7 +143,7 @@ class Canvas
       if had_selection || chars_typed.size != 1
         # Selection replace or multiple chars in one frame: full-state event.
         flush_text_coalesce
-        emit_text_event(TextChangedEvent.new(id, text_after, bounds_now)) if text_before != text_after
+        emit_text_event(TextChangedEvent.new(id, text_after, bounds_now, cursor_before)) if text_before != text_after
       else
         # Single char insert with no prior selection: coalesce into a word group.
         ch        = chars_typed[0]
@@ -163,22 +163,22 @@ class Canvas
       flush_text_coalesce
       if text_before != text_after
         if had_selection
-          emit_text_event(TextChangedEvent.new(id, text_after, bounds_now))
+          emit_text_event(TextChangedEvent.new(id, text_after, bounds_now, cursor_before))
         else
-          emit_text_event(DeleteTextEvent.new(id, cursor_after, cursor_before - cursor_after, bounds_now))
+          emit_text_event(DeleteTextEvent.new(id, cursor_after, cursor_before - cursor_after, bounds_now, cursor_before))
         end
       end
 
     when :backspace_word, :cut
       flush_text_coalesce
-      emit_text_event(TextChangedEvent.new(id, text_after, bounds_now)) if text_before != text_after
+      emit_text_event(TextChangedEvent.new(id, text_after, bounds_now, cursor_before)) if text_before != text_after
 
     when :paste
       flush_text_coalesce
       if text_before != text_after
         pt = paste_text
         if had_selection || pt.nil?
-          emit_text_event(TextChangedEvent.new(id, text_after, bounds_now))
+          emit_text_event(TextChangedEvent.new(id, text_after, bounds_now, cursor_before))
         else
           emit_text_event(InsertTextEvent.new(id, cursor_before, pt, bounds_now))
         end
@@ -209,9 +209,9 @@ class Canvas
           bd = BoundsData.new(b.x, b.y, b.width, b.height)
           flush_text_coalesce
           if had_selection || ctrl
-            emit_text_event(TextChangedEvent.new(el.id, text_after, bd))
+            emit_text_event(TextChangedEvent.new(el.id, text_after, bd, cursor_start))
           else
-            emit_text_event(DeleteTextEvent.new(el.id, cursor_start, 1, bd))
+            emit_text_event(DeleteTextEvent.new(el.id, cursor_start, 1, bd, cursor_start))
           end
         end
       end
@@ -291,21 +291,79 @@ class Canvas
   end
 
   private def perform_undo
-    commit_text_session_if_active
-    return unless (restored = @history.undo)
-    @model           = restored
-    @text_session_id = nil
-    @mode            = IdleMode.new(cursor_tool)
-    sync_elements_from_model
+    if @text_session_id
+      flush_text_coalesce
+      undone_event = @history.last_event
+      return unless (restored = @history.undo)
+      @model = restored
+      sync_elements_from_model
+      if @text_session_id
+        restore_cursor_after_undo(undone_event)
+      else
+        @mode = IdleMode.new(cursor_tool)
+      end
+    else
+      commit_text_session_if_active
+      return unless (restored = @history.undo)
+      @model           = restored
+      @text_session_id = nil
+      @mode            = IdleMode.new(cursor_tool)
+      sync_elements_from_model
+    end
   end
 
   private def perform_redo
-    commit_text_session_if_active
-    return unless (restored = @history.redo)
-    @model           = restored
-    @text_session_id = nil
-    @mode            = IdleMode.new(cursor_tool)
-    sync_elements_from_model
+    if @text_session_id
+      flush_text_coalesce
+      redo_event = @history.last_redo_event
+      return unless (restored = @history.redo)
+      @model = restored
+      sync_elements_from_model
+      if @text_session_id
+        restore_cursor_after_redo(redo_event)
+      else
+        @mode = IdleMode.new(cursor_tool)
+      end
+    else
+      commit_text_session_if_active
+      return unless (restored = @history.redo)
+      @model           = restored
+      @text_session_id = nil
+      @mode            = IdleMode.new(cursor_tool)
+      sync_elements_from_model
+    end
+  end
+
+  private def restore_cursor_after_undo(event : CanvasEvent?) : Nil
+    return unless (idx = @selected_index)
+    return unless (el = @elements[idx]?)
+    return unless el.responds_to?(:set_selection)
+    pos = case event
+          when InsertTextEvent  then event.position
+          when DeleteTextEvent  then event.cursor_before
+          when TextChangedEvent then event.cursor_before
+          else                       el.cursor_pos
+          end
+    max_pos = el.responds_to?(:editing_text) ? el.editing_text.chars.size : 0
+    clamped = pos.clamp(0, max_pos)
+    el.set_selection(clamped, clamped)
+    el.clear_selection
+  end
+
+  private def restore_cursor_after_redo(event : CanvasEvent?) : Nil
+    return unless (idx = @selected_index)
+    return unless (el = @elements[idx]?)
+    return unless el.responds_to?(:set_selection)
+    pos = case event
+          when InsertTextEvent  then event.position + event.text.chars.size
+          when DeleteTextEvent  then event.start
+          when TextChangedEvent then el.cursor_pos
+          else                       el.cursor_pos
+          end
+    max_pos = el.responds_to?(:editing_text) ? el.editing_text.chars.size : 0
+    clamped = pos.clamp(0, max_pos)
+    el.set_selection(clamped, clamped)
+    el.clear_selection
   end
 
   # Toggle the routing style of the selected arrow with Tab.

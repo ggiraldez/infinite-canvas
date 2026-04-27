@@ -74,11 +74,13 @@ end
 class TextChangedEvent < CanvasEvent
   # Applies to both TextModel (text field) and RectModel (label field).
   # new_bounds captures the post-layout size at emission time.
+  # cursor_before: char offset of cursor before this event (used to restore position on undo).
   property id : UUID
   property new_text : String
   property new_bounds : BoundsData
+  property cursor_before : Int32
 
-  def initialize(@id : UUID, @new_text : String, @new_bounds : BoundsData); end
+  def initialize(@id : UUID, @new_text : String, @new_bounds : BoundsData, @cursor_before : Int32 = 0); end
 end
 
 class ArrowRoutingChangedEvent < CanvasEvent
@@ -105,6 +107,7 @@ class DeleteTextEvent < CanvasEvent
   property start : Int32          # char offset of first deleted char
   property length : Int32         # number of chars deleted
   property new_bounds : BoundsData
+  property cursor_before : Int32  # cursor position before the delete (for undo restoration)
 
-  def initialize(@id : UUID, @start : Int32, @length : Int32, @new_bounds : BoundsData); end
+  def initialize(@id : UUID, @start : Int32, @length : Int32, @new_bounds : BoundsData, @cursor_before : Int32); end
 end

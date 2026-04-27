@@ -400,7 +400,7 @@ class Canvas
                  end
     return if new_text == model_text
     b     = el.bounds
-    event = TextChangedEvent.new(tid, new_text, BoundsData.new(b.x, b.y, b.width, b.height))
+    event = TextChangedEvent.new(tid, new_text, BoundsData.new(b.x, b.y, b.width, b.height), el.cursor_pos)
     apply(@model, event)
     @history.push(event)
   end
