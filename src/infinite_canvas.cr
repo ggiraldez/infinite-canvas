@@ -3,6 +3,7 @@ require "./app_font"
 require "./canvas"
 require "./toolbar"
 require "./color_palette"
+require "./smooth_timer"
 
 module InfiniteCanvas
   VERSION = "0.1.0"
@@ -24,8 +25,8 @@ module InfiniteCanvas
     toolbar = Toolbar.new
     palette = ColorPalette.new
 
-    smooth_update_ms = 0.0_f64
-    smooth_draw_ms = 0.0_f64
+    update_time = SmoothTimer.new
+    draw_time = SmoothTimer.new
 
     until R.close_window? || canvas.quit_requested?
       # Keep the camera offset pinned to the window centre when resized so
@@ -37,12 +38,12 @@ module InfiniteCanvas
 
       palette.update(canvas)
       toolbar.update(canvas)
-      smooth_update_ms = timed_ema(smooth_update_ms) { canvas.update }
+      update_time.measure { canvas.update }
 
       R.begin_drawing
       R.clear_background(Canvas::BACKGROUND)
-      smooth_draw_ms = timed_ema(smooth_draw_ms) { canvas.draw }
-      draw_hud(canvas, toolbar, palette, smooth_update_ms, smooth_draw_ms)
+      draw_time.measure { canvas.draw }
+      draw_hud(canvas, toolbar, palette, update_time.value, draw_time.value)
       R.end_drawing
     end
 
@@ -50,23 +51,14 @@ module InfiniteCanvas
     R.close_window
   end
 
-  # Times the block and returns an exponential moving average of elapsed ms.
-  # α = 0.1 gives roughly a 10-frame smoothing window at 60 fps.
-  private def self.timed_ema(smooth : Float64, &) : Float64
-    t0 = Time.instant
-    yield
-    ms = (Time.instant - t0).total_milliseconds
-    smooth * 0.9 + ms * 0.1
-  end
-
-  private def self.draw_hud(canvas : Canvas, toolbar : Toolbar, palette : ColorPalette, smooth_update_ms : Float64, smooth_draw_ms : Float64)
+  private def self.draw_hud(canvas : Canvas, toolbar : Toolbar, palette : ColorPalette, update_ms : Float64, draw_ms : Float64)
     toolbar.draw(canvas)
     palette.draw(canvas)
     AppFont.draw("Elements: #{canvas.elements.size}   Zoom: #{canvas.camera.zoom.round(2)}x", 12, 12, 20, R::GRAY)
     if (el = canvas.selected_element).is_a?(ArrowElement)
       AppFont.draw("Routing: #{el.routing_style}   [Tab]", 12, 36, 20, R::DARKGRAY)
     end
-    timing_label = "update: #{smooth_update_ms.round(2)}ms  draw: #{smooth_draw_ms.round(2)}ms"
+    timing_label = "update: #{update_ms.round(2)}ms  draw: #{draw_ms.round(2)}ms"
     label_w = AppFont.measure(timing_label, 20)
     AppFont.draw(timing_label, R.get_screen_width - 110 - label_w, R.get_screen_height - 30, 20, R::GRAY)
     R.draw_fps(R.get_screen_width - 100, R.get_screen_height - 30)
