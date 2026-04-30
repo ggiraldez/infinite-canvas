@@ -3,22 +3,20 @@
 alias TextLayoutData = Array({String, Int32})
 
 module TextLayout
-  # Wrap *text* to fit within *avail_width* pixels at *font_size*.
+  # Wrap *text* to fit within *avail_width* pixels.
   # Returns visual line runs as {line_text, start_offset_in_text} pairs.
   # Preserves explicit newlines; breaks at word boundaries where possible.
-  # The *measure* block returns the pixel width of a string at *font_size*.
+  # The *measure* block returns the pixel width of a string.
   #
   # ── Algorithm (O(n) measure calls) ────────────────────────────────────────
   # Build a per-character width prefix-sum, then use binary search + one
   # interpolation pivot to find each line-break in O(log n) probes instead
   # of the naïve O(L) re-measurement per line.  See the original method
   # comment in text_element.cr for a full derivation.
-  def self.compute(text : String, avail_width : Float32, font_size : Int32,
-                   spacing : Int32? = nil,
+  def self.compute(text : String, avail_width : Float32, spacing : Int32 = 0,
                    &measure : String -> Int32) : TextLayoutData
     avail_i = [avail_width, 1.0_f32].max.to_i32
     result = [] of {String, Int32}
-    spacing = spacing || (font_size / 10)
     full_offset = 0
 
     text.split('\n').each do |para|

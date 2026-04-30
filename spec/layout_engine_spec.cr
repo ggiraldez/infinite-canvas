@@ -7,15 +7,16 @@ require "../src/layout_engine"
 # Consistent stub measurer: per-string width includes inter-character spacing,
 # matching how Raylib behaves, so results are coherent with TextLayout.compute.
 # 10 px per char + (n-1) * (font_size / 10) px spacing for n-char strings.
+STUB_SPACING = 0
+
 private def stub_measure : Measurer
-  Proc(String, Int32, Int32).new do |s, font_size|
-    spacing = font_size / 10
-    (s.size * 10 + [s.size - 1, 0].max * spacing).to_i32
+  Proc(String, Int32).new do |s|
+    (s.size * 10 + [s.size - 1, 0].max * STUB_SPACING).to_i32
   end
 end
 
 private def make_engine
-  LayoutEngine.new(stub_measure)
+  LayoutEngine.new(stub_measure, STUB_SPACING)
 end
 
 describe LayoutEngine do
@@ -189,8 +190,8 @@ describe LayoutEngine do
 
       r = make_engine.layout(model)[id].as(RectRenderData)
 
-      # stub: "ab" = 2*10 + 1*2 = 22; "cd" = 22
-      r.label_lines.should eq [{"ab", 22}, {"cd", 22}]
+      # stub: "ab" = 2*10 + 0 spacing = 20; "cd" = 20
+      r.label_lines.should eq [{"ab", 20}, {"cd", 20}]
     end
 
     it "returns a single empty label_line for an empty label" do

@@ -72,16 +72,15 @@ class ColorPalette
     R.draw_rectangle_rec(panel_rect(px, py), BG)
     R.draw_rectangle_lines_ex(panel_rect(px, py), 1.0_f32, BORDER)
 
-    font_size = 20
-    aw = @font.measure("A", font_size)
+    aw = @font.measure("A")
     SCHEMES.each_with_index do |scheme, i|
       rect = swatch_rect(px, py, i)
       R.draw_rectangle_rec(rect, scheme.fill.to_raylib)
       R.draw_rectangle_lines_ex(rect, 1.5_f32, scheme.stroke.to_raylib)
       @font.draw("A",
         (rect.x + (rect.width - aw) / 2).to_i,
-        (rect.y + (rect.height - font_size) / 2).to_i,
-        font_size, scheme.label.to_raylib)
+        (rect.y + (rect.height - @font.size) / 2).to_i,
+        scheme.label.to_raylib)
       if active_scheme?(el, scheme)
         exp = 3.0_f32
         ring = R::Rectangle.new(x: rect.x - exp, y: rect.y - exp,

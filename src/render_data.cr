@@ -1,9 +1,9 @@
 require "./model"
 require "./text_layout"
 
-# (text, font_size) → pixel_width.  Injected into LayoutEngine so layout
-# has no hard Raylib dependency and can be unit-tested with a stub.
-alias Measurer = Proc(String, Int32, Int32)
+# text → pixel_width.  Injected into LayoutEngine so layout has no hard
+# Raylib dependency and can be unit-tested with a stub.
+alias Measurer = Proc(String, Int32)
 
 struct TextRenderData
   property bounds : BoundsData

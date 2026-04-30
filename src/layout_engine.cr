@@ -12,7 +12,7 @@ class LayoutEngine
   LABEL_FONT_SIZE = 20
   LABEL_PAD_H     = 16
 
-  def initialize(@measure : Measurer)
+  def initialize(@measure : Measurer, @spacing : Int32 = 0)
   end
 
   # Public entry point for laying out a single TextModel — used by Canvas
@@ -47,7 +47,7 @@ class LayoutEngine
 
     if m.fixed_width
       avail_w = (m.bounds.w - padding * 2).to_f32
-      line_runs = measure_line_runs(m.text, avail_w, font_size)
+      line_runs = measure_line_runs(m.text, avail_w)
       line_count = m.text.empty? ? 1 : line_runs.size
       mh = (line_count * font_size + padding * 2).to_f32
       return TextRenderData.new(
@@ -56,7 +56,7 @@ class LayoutEngine
     end
 
     if m.text.empty?
-      cursor_w = @measure.call("|", font_size)
+      cursor_w = @measure.call("|")
       content_w = (cursor_w + padding * 2).to_f32
       content_h = (font_size + padding * 2).to_f32
       return TextRenderData.new(
@@ -65,14 +65,14 @@ class LayoutEngine
     end
 
     lines = m.text.split('\n')
-    max_tw = lines.map { |l| @measure.call(l, font_size) }.max? || 0
+    max_tw = lines.map { |l| @measure.call(l) }.max? || 0
     content_w = (max_tw + padding * 2).to_f32
     content_h = (lines.size * font_size + padding * 2).to_f32
 
     cap = m.max_auto_width
     if cap && content_w > cap
       avail_w = (cap - padding * 2).to_f32
-      line_runs = measure_line_runs(m.text, avail_w, font_size)
+      line_runs = measure_line_runs(m.text, avail_w)
       line_count = line_runs.size
       mh = (line_count * font_size + padding * 2).to_f32
       TextRenderData.new(
@@ -80,7 +80,7 @@ class LayoutEngine
         line_runs, true)
     else
       avail_w = (content_w - padding * 2).to_f32
-      line_runs = measure_line_runs(m.text, avail_w, font_size)
+      line_runs = measure_line_runs(m.text, avail_w)
       TextRenderData.new(
         BoundsData.new(m.bounds.x, m.bounds.y, content_w, content_h),
         line_runs, false)
@@ -89,7 +89,7 @@ class LayoutEngine
 
   private def layout_rect(m : RectModel) : RectRenderData
     font_size = LABEL_FONT_SIZE
-    label_lines = m.label.split('\n').map { |line| {line, @measure.call(line, font_size)} }
+    label_lines = m.label.split('\n').map { |line| {line, @measure.call(line)} }
     RectRenderData.new(m.bounds, label_lines)
   end
 
@@ -182,7 +182,7 @@ class LayoutEngine
     (my_rank + 1).to_f32 / (sorted.size + 1).to_f32
   end
 
-  private def measure_line_runs(text : String, avail_w : Float32, font_size : Int32) : TextLayoutData
-    TextLayout.compute(text, avail_w, font_size, 0) { |s| @measure.call(s, font_size) }
+  private def measure_line_runs(text : String, avail_w : Float32) : TextLayoutData
+    TextLayout.compute(text, avail_w, @spacing) { |s| @measure.call(s) }
   end
 end

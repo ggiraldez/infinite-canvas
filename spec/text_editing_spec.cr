@@ -13,7 +13,10 @@ alias R = Raylib
 # measure: 8 px per character, font-size-independent, no spacing.
 # This makes nearest_col_for_x deterministic: column i snaps at x = (2i+1)*4.
 class Font
-  def measure(text : String, font_size : Number) : Int32
+  getter size : Int32 = 20
+  getter spacing : Float32 = 0.0_f32
+
+  def measure(text : String) : Int32
     text.size * 8
   end
 end

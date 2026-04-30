@@ -107,11 +107,11 @@ class TextElement < Element
       next_start = vi + 1 < runs.size ? runs[vi + 1][1] : Int32::MAX
       if @cursor_pos >= line_start && @cursor_pos < next_start
         col = [@cursor_pos - line_start, line_str.chars.size].min
-        x_px = @font.measure(line_str.chars[0...col].join, FONT_SIZE)
+        x_px = @font.measure(line_str.chars[0...col].join)
         return {vi, x_px}
       end
     end
     last_line = runs.last[0]
-    {runs.size - 1, @font.measure(last_line, FONT_SIZE)}
+    {runs.size - 1, @font.measure(last_line)}
   end
 end

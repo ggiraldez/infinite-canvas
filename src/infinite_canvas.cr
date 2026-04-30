@@ -54,13 +54,13 @@ module InfiniteCanvas
   private def self.draw_hud(canvas : Canvas, toolbar : Toolbar, palette : ColorPalette, font : Font, update_ms : Float64, draw_ms : Float64)
     toolbar.draw(canvas)
     palette.draw(canvas)
-    font.draw("Elements: #{canvas.elements.size}   Zoom: #{canvas.camera.zoom.round(2)}x", 12, 12, 20, R::GRAY)
+    font.draw("Elements: #{canvas.elements.size}   Zoom: #{canvas.camera.zoom.round(2)}x", 12, 12, R::GRAY)
     if (el = canvas.selected_element).is_a?(ArrowElement)
-      font.draw("Routing: #{el.routing_style}   [Tab]", 12, 36, 20, R::DARKGRAY)
+      font.draw("Routing: #{el.routing_style}   [Tab]", 12, 36, R::DARKGRAY)
     end
     timing_label = "update: #{update_ms.round(2)}ms  draw: #{draw_ms.round(2)}ms"
-    label_w = font.measure(timing_label, 20)
-    font.draw(timing_label, R.get_screen_width - 110 - label_w, R.get_screen_height - 30, 20, R::GRAY)
+    label_w = font.measure(timing_label)
+    font.draw(timing_label, R.get_screen_width - 110 - label_w, R.get_screen_height - 30, R::GRAY)
     R.draw_fps(R.get_screen_width - 100, R.get_screen_height - 30)
   end
 end
