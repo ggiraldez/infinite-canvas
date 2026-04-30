@@ -5,6 +5,7 @@ require "./canvas"
 class Toolbar
   def initialize(@font : Font)
   end
+
   TOOLS = [
     {Canvas::CursorTool::Selection, "Select", "S"},
     {Canvas::CursorTool::Rect, "Rect", "R"},

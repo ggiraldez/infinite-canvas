@@ -7,6 +7,7 @@ require "./model"
 class ColorPalette
   def initialize(@font : Font)
   end
+
   struct Scheme
     getter name : String
     getter fill : ColorData

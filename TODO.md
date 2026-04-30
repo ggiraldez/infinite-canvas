@@ -86,7 +86,7 @@
 
 25. **Arrow line thickness and arrowhead are world-space constants, not screen-space** — `ARROW_WIDTH = 2.0_f32` and `ARROWHEAD_LEN = 14.0_f32` scale with camera zoom like element bounds do. All other zoom-invariant sizes (selection outline `2/zoom`, handles `HANDLE_SIZE/zoom`, grid lines `1/zoom`) use the `pixels / @camera.zoom` pattern. At zoom 0.1× an arrow is barely a hair; at zoom 4× the line is 8 px wide and the arrowhead is 56 px long. Pass zoom into `draw_segments` and apply the same pattern.
 
-26. **`smooth_draw_ms` initialises to 0.0** — the EMA takes ~20 frames (at α = 0.1) to converge, displaying an artificially low draw time on startup. Seed with the first real sample: `smooth_draw_ms = draw_ms` before entering the EMA update.
+26. **`SmoothTimer` initialises to 0.0** — the EMA takes ~20 frames (at α = 0.1) to converge, displaying an artificially low draw time on startup. Seed the `value` with the first real sample before the main loop begins.
 
 27. ~~**No `Escape` key to deselect**~~ — fixed: `Escape` deselects/cancels; `Ctrl+Q` quits.
 

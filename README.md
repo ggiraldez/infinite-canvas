@@ -152,7 +152,7 @@ restored automatically on next launch.
 The top-left overlay shows the active tool, element count, and zoom level. When
 an arrow is selected its routing style is shown with a reminder of the `Tab`
 toggle. The bottom-right corner shows smoothed **update** and **draw** times (in
-ms, exponential moving average over ~10 frames) alongside the FPS counter.
+ms, exponential moving average over ~10 frames via `SmoothTimer`) alongside the FPS counter.
 
 ## Performance notes
 
@@ -166,12 +166,12 @@ Laying out wrapped text requires knowing how wide any substring is. The naive ap
 
 `TextLayout.compute` (called by `LayoutEngine` once per event) uses an O(n) prefix-sum to answer any substring-width query in O(1):
 
-1. **Single-character measurements** — `MeasureText(c)` is called once per character in the paragraph and stored in `char_ws`. This is the only O(n) pass over Raylib.
-2. **Prefix-sum array** — `prefix[i]` holds the sum of `char_ws[0..i-1]`. The width of the substring `s[a..b]` (using Raylib's formula, which adds `spacing` between — not after — adjacent characters) is:
+1. **Single-character measurements** — `metrics.measure(c)` is called once per character in the paragraph and stored in `char_ws`. This is the only O(n) pass over the font. The `metrics` object is a `FontMetrics` instance, keeping Raylib out of the layout path.
+2. **Prefix-sum array** — `prefix[i]` holds the sum of `char_ws[0..i-1]`. The width of the substring `s[a..b]` (adding `spacing` between — not after — adjacent characters) is:
    ```
    prefix[b+1] - prefix[a] + spacing * (b - a)
    ```
-   where `spacing = fontSize / 10` (Raylib's default inter-character gap).
+   where `spacing` comes from `FontMetrics#spacing`.
 3. **Interpolation-seeded binary search** — instead of bisecting from the middle each time, the first candidate is estimated by assuming uniform character width:
    ```
    est ≈ line_start + avail_width * remaining_chars / full_remaining_width
