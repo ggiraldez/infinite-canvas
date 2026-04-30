@@ -1,10 +1,12 @@
 require "raylib-cr"
-require "./app_font"
+require "./font"
 require "./canvas"
 require "./events"
 require "./model"
 
 class ColorPalette
+  def initialize(@font : Font)
+  end
   struct Scheme
     getter name : String
     getter fill : ColorData
@@ -70,13 +72,13 @@ class ColorPalette
     R.draw_rectangle_rec(panel_rect(px, py), BG)
     R.draw_rectangle_lines_ex(panel_rect(px, py), 1.0_f32, BORDER)
 
+    font_size = 20
+    aw = @font.measure("A", font_size)
     SCHEMES.each_with_index do |scheme, i|
       rect = swatch_rect(px, py, i)
       R.draw_rectangle_rec(rect, scheme.fill.to_raylib)
       R.draw_rectangle_lines_ex(rect, 1.5_f32, scheme.stroke.to_raylib)
-      font_size = 20
-      aw = AppFont.measure("A", font_size)
-      AppFont.draw("A",
+      @font.draw("A",
         (rect.x + (rect.width - aw) / 2).to_i,
         (rect.y + (rect.height - font_size) / 2).to_i,
         font_size, scheme.label.to_raylib)

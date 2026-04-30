@@ -5,6 +5,7 @@
 #   def editing_text : String
 #   def editing_text=(v : String)
 #   def editing_font_size : Int32
+#   def font : Font
 module TextEditing
   @cursor_pos : Int32 = 0
   # Timestamp of the last keystroke — keeps the cursor solid for 0.5 s after input.
@@ -160,7 +161,7 @@ module TextEditing
     return if @cursor_pos == 0
     lines_b = lines_before_cursor
     return if lines_b.size <= 1
-    target_x = @preferred_x || AppFont.measure(lines_b.last, editing_font_size)
+    target_x = @preferred_x || font.measure(lines_b.last, editing_font_size)
     @preferred_x = target_x
     new_col = nearest_col_for_x(lines_b[-2], target_x)
     prefix = lines_b[0...-2].sum(0) { |l| l.size + 1 }
@@ -175,7 +176,7 @@ module TextEditing
     all_lines = editing_text.split('\n')
     line_idx = lines_b.size - 1
     return if line_idx >= all_lines.size - 1
-    target_x = @preferred_x || AppFont.measure(lines_b.last, editing_font_size)
+    target_x = @preferred_x || font.measure(lines_b.last, editing_font_size)
     @preferred_x = target_x
     new_col = nearest_col_for_x(all_lines[line_idx + 1], target_x)
     prefix = (0..line_idx).sum { |i| all_lines[i].size + 1 }
@@ -281,7 +282,7 @@ module TextEditing
   private def nearest_col_for_x(line : String, target_x : Int32) : Int32
     prev_x = 0
     line.chars.each_with_index do |_, i|
-      curr_x = AppFont.measure(line.chars[0, i + 1].join, editing_font_size)
+      curr_x = font.measure(line.chars[0, i + 1].join, editing_font_size)
       return i if target_x < (prev_x + curr_x) / 2
       prev_x = curr_x
     end

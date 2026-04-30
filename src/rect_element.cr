@@ -1,5 +1,5 @@
 # ─── Rectangle ────────────────────────────────────────────────────────────────
-require "./app_font"
+require "./font"
 
 class RectElement < Element
   include TextEditing
@@ -30,7 +30,7 @@ class RectElement < Element
 
   def min_size : {Float32, Float32}
     lines = @label.split('\n')
-    max_w = lines.map { |l| AppFont.measure(l, LABEL_FONT_SIZE) }.max? || 0
+    max_w = lines.map { |l| @font.measure(l, LABEL_FONT_SIZE) }.max? || 0
     total_h = lines.size * LABEL_FONT_SIZE
     {(max_w + LABEL_PADDING_H * 2).to_f32, (total_h + LABEL_PADDING_V * 2).to_f32}
   end
@@ -43,7 +43,7 @@ class RectElement < Element
     start_y = bounds.y + (bounds.height - total_h) / 2.0_f32
     vi = ((world_pos.y - start_y) / LABEL_FONT_SIZE).to_i.clamp(0, lines.size - 1)
     line = lines[vi]
-    line_w = AppFont.measure(line, LABEL_FONT_SIZE)
+    line_w = @font.measure(line, LABEL_FONT_SIZE)
     line_x = bounds.x + (bounds.width - line_w) / 2.0_f32
     rel_x = (world_pos.x - line_x).to_i
     col = nearest_col_for_x(line, rel_x)
@@ -58,7 +58,7 @@ class RectElement < Element
     start_y = bounds.y + (bounds.height - total_h) / 2.0_f32
     vi = ((mouse_world.y - start_y) / LABEL_FONT_SIZE).to_i.clamp(0, lines.size - 1)
     line = lines[vi]
-    line_w = AppFont.measure(line, LABEL_FONT_SIZE)
+    line_w = @font.measure(line, LABEL_FONT_SIZE)
     line_x = bounds.x + (bounds.width - line_w) / 2.0_f32
     rel_x = (mouse_world.x - line_x).to_i
     col = nearest_col_for_x(line, rel_x)
@@ -68,7 +68,10 @@ class RectElement < Element
     reset_blink
   end
 
-  def initialize(bounds : R::Rectangle,
+  getter font : Font
+
+  def initialize(@font : Font,
+                 bounds : R::Rectangle,
                  @fill : R::Color = R::Color.new(r: 90, g: 140, b: 220, a: 200),
                  @stroke : R::Color = R::Color.new(r: 30, g: 60, b: 120, a: 255),
                  @stroke_width : Float32 = 2.0_f32,

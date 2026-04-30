@@ -9,24 +9,28 @@ end
 
 alias R = Raylib
 
-# Stub AppFont module
+# Stub Font class
 # measure: 8 px per character, font-size-independent, no spacing.
 # This makes nearest_col_for_x deterministic: column i snaps at x = (2i+1)*4.
-module AppFont
-  def self.measure(text : String, font_size : Int32) : Int32
+class Font
+  def measure(text : String, font_size : Number) : Int32
     text.size * 8
   end
 end
 
 require "../src/text_editing"
 
-# Minimal host class — TextEditing needs editing_text r/w and editing_font_size.
+# Minimal host class — TextEditing needs editing_text r/w, editing_font_size, and font.
 # fit_content is a no-op: we test only cursor/text logic, not layout.
 private class Ed
   include TextEditing
 
   property editing_text : String
   property editing_font_size : Int32 = 10
+
+  def font : Font
+    @font ||= Font.new
+  end
 
   def fit_content; end
 

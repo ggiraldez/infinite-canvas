@@ -1,5 +1,5 @@
 require "./text_layout"
-require "./app_font"
+require "./font"
 
 # ─── Text node ────────────────────────────────────────────────────────────────
 
@@ -32,7 +32,9 @@ class TextElement < Element
     FONT_SIZE
   end
 
-  def initialize(bounds : R::Rectangle, @text : String = "", id : UUID = UUID.random, @fixed_width : Bool = false)
+  getter font : Font
+
+  def initialize(@font : Font, bounds : R::Rectangle, @text : String = "", id : UUID = UUID.random, @fixed_width : Bool = false)
     super(bounds, id)
     init_cursor
   end
@@ -105,11 +107,11 @@ class TextElement < Element
       next_start = vi + 1 < runs.size ? runs[vi + 1][1] : Int32::MAX
       if @cursor_pos >= line_start && @cursor_pos < next_start
         col = [@cursor_pos - line_start, line_str.chars.size].min
-        x_px = AppFont.measure(line_str.chars[0...col].join, FONT_SIZE)
+        x_px = @font.measure(line_str.chars[0...col].join, FONT_SIZE)
         return {vi, x_px}
       end
     end
     last_line = runs.last[0]
-    {runs.size - 1, AppFont.measure(last_line, FONT_SIZE)}
+    {runs.size - 1, @font.measure(last_line, FONT_SIZE)}
   end
 end

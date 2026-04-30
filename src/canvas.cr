@@ -1,6 +1,6 @@
 require "json"
 require "raylib-cr"
-require "./app_font"
+require "./font"
 require "./model"
 require "./events"
 require "./apply"
@@ -77,7 +77,7 @@ class Canvas
     (idx = @selected_index) ? @elements[idx]? : nil
   end
 
-  @renderer : Renderer = Renderer.new
+  @renderer : Renderer
   @layout_engine : LayoutEngine
   @render_data : RenderData
 
@@ -125,11 +125,12 @@ class Canvas
     @quit_requested
   end
 
-  def initialize(screen_width : Int32, screen_height : Int32)
+  def initialize(screen_width : Int32, screen_height : Int32, @font : Font)
+    @renderer = Renderer.new(@font)
     @model = CanvasModel.new
     @history = HistoryManager.new(@model)
     @elements = [] of Element
-    @layout_engine = LayoutEngine.new(Proc(String, Int32, Int32).new { |t, fs| AppFont.measure(t, fs) })
+    @layout_engine = LayoutEngine.new(Proc(String, Int32, Int32).new { |t, fs| @font.measure(t, fs) })
     @render_data = RenderData.new
     @camera = R::Camera2D.new(
       offset: R::Vector2.new(x: screen_width / 2.0_f32, y: screen_height / 2.0_f32),
@@ -252,6 +253,7 @@ class Canvas
       when RectModel
         b = m.bounds
         RectElement.new(
+          @font,
           R::Rectangle.new(x: b.x, y: b.y, width: b.w, height: b.h),
           m.fill.to_raylib, m.stroke.to_raylib, m.stroke_width, m.label, m.id,
           m.label_color.to_raylib
@@ -259,6 +261,7 @@ class Canvas
       when TextModel
         b = m.bounds
         TextElement.new(
+          @font,
           R::Rectangle.new(x: b.x, y: b.y, width: b.w, height: b.h),
           m.text, m.id, m.fixed_width
         ).as(Element)
@@ -369,7 +372,7 @@ class Canvas
   def refresh_element_layout(el : Element) : Nil
     if el.is_a?(RectElement)
       label_lines = el.label.split('\n').map { |line|
-        {line, AppFont.measure(line, RectElement::LABEL_FONT_SIZE)}
+        {line, @font.measure(line, RectElement::LABEL_FONT_SIZE)}
       }
       min_w, min_h = el.min_size
       b = el.bounds
@@ -434,9 +437,9 @@ class Canvas
       type = item["type"]?.try(&.as_s?) || "rect"
       data = item.to_json
       case type
-      when "rect"  then RectElementData.from_json(data).to_element.as(Element)
-      when "text"  then TextElementData.from_json(data).to_element.as(Element)
-      when "arrow" then ArrowElementData.from_json(data).to_element(@elements).as(Element)
+      when "rect"  then RectElementData.from_json(data).to_element(@font).as(Element)
+      when "text"  then TextElementData.from_json(data).to_element(@font).as(Element)
+      when "arrow" then ArrowElementData.from_json(data).to_element(@font).as(Element)
       end
     end
     @model = elements_to_model(@elements)

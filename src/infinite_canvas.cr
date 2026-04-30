@@ -1,5 +1,5 @@
 require "raylib-cr"
-require "./app_font"
+require "./font"
 require "./canvas"
 require "./toolbar"
 require "./color_palette"
@@ -15,15 +15,15 @@ module InfiniteCanvas
   def self.run
     R.set_config_flags(R::ConfigFlags::WindowResizable | R::ConfigFlags::MSAA4xHint)
     R.init_window(WINDOW_WIDTH, WINDOW_HEIGHT, TITLE)
-    AppFont.load
+    font = Font.new("resources/Inter-Regular.ttf", 20)
     R.set_target_fps(60)
     R.set_exit_key(R::KeyboardKey::Null)
 
-    canvas = Canvas.new(WINDOW_WIDTH, WINDOW_HEIGHT)
+    canvas = Canvas.new(WINDOW_WIDTH, WINDOW_HEIGHT, font)
     canvas.load
 
-    toolbar = Toolbar.new
-    palette = ColorPalette.new
+    toolbar = Toolbar.new(font)
+    palette = ColorPalette.new(font)
 
     update_time = SmoothTimer.new
     draw_time = SmoothTimer.new
@@ -43,7 +43,7 @@ module InfiniteCanvas
       R.begin_drawing
       R.clear_background(Canvas::BACKGROUND)
       draw_time.measure { canvas.draw }
-      draw_hud(canvas, toolbar, palette, update_time.value, draw_time.value)
+      draw_hud(canvas, toolbar, palette, font, update_time.value, draw_time.value)
       R.end_drawing
     end
 
@@ -51,16 +51,16 @@ module InfiniteCanvas
     R.close_window
   end
 
-  private def self.draw_hud(canvas : Canvas, toolbar : Toolbar, palette : ColorPalette, update_ms : Float64, draw_ms : Float64)
+  private def self.draw_hud(canvas : Canvas, toolbar : Toolbar, palette : ColorPalette, font : Font, update_ms : Float64, draw_ms : Float64)
     toolbar.draw(canvas)
     palette.draw(canvas)
-    AppFont.draw("Elements: #{canvas.elements.size}   Zoom: #{canvas.camera.zoom.round(2)}x", 12, 12, 20, R::GRAY)
+    font.draw("Elements: #{canvas.elements.size}   Zoom: #{canvas.camera.zoom.round(2)}x", 12, 12, 20, R::GRAY)
     if (el = canvas.selected_element).is_a?(ArrowElement)
-      AppFont.draw("Routing: #{el.routing_style}   [Tab]", 12, 36, 20, R::DARKGRAY)
+      font.draw("Routing: #{el.routing_style}   [Tab]", 12, 36, 20, R::DARKGRAY)
     end
     timing_label = "update: #{update_ms.round(2)}ms  draw: #{draw_ms.round(2)}ms"
-    label_w = AppFont.measure(timing_label, 20)
-    AppFont.draw(timing_label, R.get_screen_width - 110 - label_w, R.get_screen_height - 30, 20, R::GRAY)
+    label_w = font.measure(timing_label, 20)
+    font.draw(timing_label, R.get_screen_width - 110 - label_w, R.get_screen_height - 30, 20, R::GRAY)
     R.draw_fps(R.get_screen_width - 100, R.get_screen_height - 30)
   end
 end

@@ -1,8 +1,10 @@
 require "raylib-cr"
-require "./app_font"
+require "./font"
 require "./canvas"
 
 class Toolbar
+  def initialize(@font : Font)
+  end
   TOOLS = [
     {Canvas::CursorTool::Selection, "Select", "S"},
     {Canvas::CursorTool::Rect, "Rect", "R"},
@@ -105,11 +107,11 @@ class Toolbar
         key_color = TEXT_DIM
       end
 
-      key_w = AppFont.measure(key, FONT_KEY)
-      AppFont.draw(key, bx + (BTN_W - key_w) / 2, by + 9, FONT_KEY, key_color)
+      key_w = @font.measure(key, FONT_KEY)
+      @font.draw(key, bx + (BTN_W - key_w) / 2, by + 9, FONT_KEY, key_color)
 
-      lbl_w = AppFont.measure(label, FONT_LBL)
-      AppFont.draw(label, bx + (BTN_W - lbl_w) / 2, by + BTN_H - FONT_LBL - 9, FONT_LBL, text_color)
+      lbl_w = @font.measure(label, FONT_LBL)
+      @font.draw(label, bx + (BTN_W - lbl_w) / 2, by + BTN_H - FONT_LBL - 9, FONT_LBL, text_color)
     end
   end
 
@@ -133,11 +135,11 @@ class Toolbar
       key_color = TEXT_DISABLED
     end
 
-    key_w = AppFont.measure(key, FONT_KEY)
-    AppFont.draw(key, bx + (BTN_W - key_w) / 2, by + 9, FONT_KEY, key_color)
+    key_w = @font.measure(key, FONT_KEY)
+    @font.draw(key, bx + (BTN_W - key_w) / 2, by + 9, FONT_KEY, key_color)
 
-    lbl_w = AppFont.measure(label, FONT_LBL)
-    AppFont.draw(label, bx + (BTN_W - lbl_w) / 2, by + BTN_H - FONT_LBL - 9, FONT_LBL, text_color)
+    lbl_w = @font.measure(label, FONT_LBL)
+    @font.draw(label, bx + (BTN_W - lbl_w) / 2, by + BTN_H - FONT_LBL - 9, FONT_LBL, text_color)
   end
 
   private def panel_origin : {Int32, Int32}

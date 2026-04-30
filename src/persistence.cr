@@ -2,6 +2,7 @@ require "json"
 require "uuid"
 require "./element"
 require "./model"
+require "./font"
 
 # Raylib conversions for model value types.
 # JSON::Serializable is already included in model.cr (no Raylib dep there).
@@ -46,9 +47,9 @@ class RectElementData < ElementData
     @label = e.label
   end
 
-  def to_element : Element
+  def to_element(font : Font) : Element
     bounds = R::Rectangle.new(x: @x, y: @y, width: @width, height: @height)
-    RectElement.new(bounds, @fill.to_raylib, @stroke.to_raylib, @stroke_width, @label || "", UUID.new(@id))
+    RectElement.new(font, bounds, @fill.to_raylib, @stroke.to_raylib, @stroke_width, @label || "", UUID.new(@id))
   end
 end
 
@@ -73,9 +74,9 @@ class TextElementData < ElementData
     @fixed_width = e.fixed_width
   end
 
-  def to_element : Element
+  def to_element(font : Font) : Element
     bounds = R::Rectangle.new(x: @x, y: @y, width: @width, height: @height)
-    TextElement.new(bounds, @text, UUID.new(@id), @fixed_width)
+    TextElement.new(font, bounds, @text, UUID.new(@id), @fixed_width)
   end
 end
 
@@ -96,11 +97,7 @@ class ArrowElementData < ElementData
     @routing_style = e.routing_style.to_s.downcase
   end
 
-  def to_element(elements : Array(Element)) : Element
-    to_element
-  end
-
-  def to_element : Element
+  def to_element(font : Font) : Element
     style = @routing_style == "straight" ? ArrowElement::RoutingStyle::Straight : ArrowElement::RoutingStyle::Orthogonal
     ArrowElement.new(UUID.new(@from_id), UUID.new(@to_id), style, UUID.new(@id))
   end

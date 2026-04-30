@@ -1,11 +1,12 @@
 require "raylib-cr"
 require "uuid"
+require "./font"
 
 alias R = Raylib
 
 # Abstract base for element serialisation data — concrete types defined in persistence.cr.
 abstract class ElementData
-  abstract def to_element : Element
+  abstract def to_element(font : Font) : Element
 end
 
 # Base class for anything that lives on the canvas.

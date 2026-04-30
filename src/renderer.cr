@@ -1,10 +1,12 @@
 # ─── Renderer ─────────────────────────────────────────────────────────────────
-require "./app_font"
+require "./font"
 
 # Pure presentation layer: reads element data + pre-computed RenderData and
 # draws to screen. No R.measure_text calls for layout — only for cursor/selection
 # sub-line pixel offsets that require knowing a partial-prefix width.
 class Renderer
+  def initialize(@font : Font)
+  end
   # Draw an element's body (no cursor, no selection overlay).
   def draw_element(el : Element, rd : ElementRenderData) : Nil
     case el
@@ -44,7 +46,7 @@ class Renderer
     rd.label_lines.each_with_index do |(line, tw), i|
       lx = (el.bounds.x + (el.bounds.width - tw) / 2.0_f32).to_i
       ly = (start_y + i * RectElement::LABEL_FONT_SIZE).to_i
-      AppFont.draw(line, lx, ly, RectElement::LABEL_FONT_SIZE, el.label_color)
+      @font.draw(line, lx, ly, RectElement::LABEL_FONT_SIZE, el.label_color)
     end
   end
 
@@ -57,8 +59,8 @@ class Renderer
         line, full_tw = all_lines.fetch(line_idx, {"", 0})
         chars = line.chars
         line_x = el.bounds.x + (el.bounds.width - full_tw) / 2.0_f32
-        x1 = line_x + AppFont.measure(chars[0, col_start].join, RectElement::LABEL_FONT_SIZE)
-        x2 = line_x + AppFont.measure(chars[0, col_end].join, RectElement::LABEL_FONT_SIZE)
+        x1 = line_x + @font.measure(chars[0, col_start].join, RectElement::LABEL_FONT_SIZE)
+        x2 = line_x + @font.measure(chars[0, col_end].join, RectElement::LABEL_FONT_SIZE)
         y = el.bounds.y + (el.bounds.height - total_h) / 2.0_f32 + line_idx * RectElement::LABEL_FONT_SIZE
         R.draw_rectangle_rec(
           R::Rectangle.new(x: x1, y: y, width: x2 - x1, height: RectElement::LABEL_FONT_SIZE.to_f32),
@@ -71,16 +73,16 @@ class Renderer
     line_idx = lines_b.size - 1
     col_text = lines_b.last
     _, full_tw = all_lines.fetch(line_idx, {"", 0})
-    col_tw = AppFont.measure(col_text, RectElement::LABEL_FONT_SIZE)
+    col_tw = @font.measure(col_text, RectElement::LABEL_FONT_SIZE)
     cx = (el.bounds.x + (el.bounds.width - full_tw) / 2.0_f32 + col_tw).to_i
     cy = (el.bounds.y + (el.bounds.height - total_h) / 2.0_f32 + line_idx * RectElement::LABEL_FONT_SIZE).to_i
-    AppFont.draw("|", cx, cy, RectElement::LABEL_FONT_SIZE, el.label_color)
+    @font.draw("|", cx, cy, RectElement::LABEL_FONT_SIZE, el.label_color)
   end
 
   private def draw_text(el : TextElement, rd : TextRenderData)
     return if el.text.empty?
     rd.line_runs.each_with_index do |(line, _), i|
-      AppFont.draw(line,
+      @font.draw(line,
         el.bounds.x.to_i + TextElement::PADDING,
         (el.bounds.y + TextElement::PADDING + i * TextElement::FONT_SIZE).to_i,
         TextElement::FONT_SIZE, TextElement::TEXT_COLOR)
@@ -101,8 +103,8 @@ class Renderer
         chars = line_str.chars
         el.selection_line_ranges(range[0], range[1]).each do |sel_line, col_start, col_end|
           next unless sel_line == line_idx
-          x1 = el.bounds.x + TextElement::PADDING + AppFont.measure(chars[0, col_start].join, TextElement::FONT_SIZE)
-          x2 = el.bounds.x + TextElement::PADDING + AppFont.measure(chars[0, col_end].join, TextElement::FONT_SIZE)
+          x1 = el.bounds.x + TextElement::PADDING + @font.measure(chars[0, col_start].join, TextElement::FONT_SIZE)
+          x2 = el.bounds.x + TextElement::PADDING + @font.measure(chars[0, col_end].join, TextElement::FONT_SIZE)
           y = el.bounds.y + TextElement::PADDING + line_idx * TextElement::FONT_SIZE
           R.draw_rectangle_rec(
             R::Rectangle.new(x: x1, y: y, width: x2 - x1, height: TextElement::FONT_SIZE.to_f32),
@@ -115,10 +117,10 @@ class Renderer
     lines_b = el.lines_before_cursor
     line_idx = lines_b.size - 1
     col_text = lines_b.last
-    tw = AppFont.measure(col_text, TextElement::FONT_SIZE)
+    tw = @font.measure(col_text, TextElement::FONT_SIZE)
     cx = el.bounds.x.to_i + TextElement::PADDING + tw
     cy = (el.bounds.y + TextElement::PADDING + line_idx * TextElement::FONT_SIZE).to_i
-    AppFont.draw("|", cx, cy, TextElement::FONT_SIZE, TextElement::TEXT_COLOR)
+    @font.draw("|", cx, cy, TextElement::FONT_SIZE, TextElement::TEXT_COLOR)
   end
 
   private def draw_text_cursor_wrapped(el : TextElement, rd : TextRenderData)
@@ -126,8 +128,8 @@ class Renderer
       text_selection_ranges(range[0], range[1], rd.line_runs).each do |vi, col_start, col_end|
         line_str = rd.line_runs.fetch(vi, {"", 0})[0]
         chars = line_str.chars
-        x1 = el.bounds.x + TextElement::PADDING + AppFont.measure(chars[0, col_start].join, TextElement::FONT_SIZE)
-        x2 = el.bounds.x + TextElement::PADDING + AppFont.measure(chars[0, col_end].join, TextElement::FONT_SIZE)
+        x1 = el.bounds.x + TextElement::PADDING + @font.measure(chars[0, col_start].join, TextElement::FONT_SIZE)
+        x2 = el.bounds.x + TextElement::PADDING + @font.measure(chars[0, col_end].join, TextElement::FONT_SIZE)
         y = el.bounds.y + TextElement::PADDING + vi * TextElement::FONT_SIZE
         R.draw_rectangle_rec(
           R::Rectangle.new(x: x1, y: y, width: x2 - x1, height: TextElement::FONT_SIZE.to_f32),
@@ -139,7 +141,7 @@ class Renderer
     vi, x_px = text_cursor_visual_pos(el.cursor_pos, rd.line_runs, TextElement::FONT_SIZE)
     cx = (el.bounds.x + TextElement::PADDING + x_px).to_i
     cy = (el.bounds.y + TextElement::PADDING + vi * TextElement::FONT_SIZE).to_i
-    AppFont.draw("|", cx, cy, TextElement::FONT_SIZE, TextElement::TEXT_COLOR)
+    @font.draw("|", cx, cy, TextElement::FONT_SIZE, TextElement::TEXT_COLOR)
   end
 
   private def draw_arrow(rd : ArrowRenderData)
@@ -155,12 +157,12 @@ class Renderer
       next_start = vi + 1 < line_runs.size ? line_runs[vi + 1][1] : Int32::MAX
       if cursor_pos >= line_start && cursor_pos < next_start
         col = [cursor_pos - line_start, line_str.chars.size].min
-        x_px = AppFont.measure(line_str.chars[0...col].join, font_size)
+        x_px = @font.measure(line_str.chars[0...col].join, font_size)
         return {vi, x_px}
       end
     end
     last_line = line_runs.last[0]
-    {line_runs.size - 1, AppFont.measure(last_line, font_size)}
+    {line_runs.size - 1, @font.measure(last_line, font_size)}
   end
 
   # Returns {vi, col_start, col_end} for each visual line overlapping [sel_start, sel_end).
