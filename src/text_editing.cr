@@ -5,7 +5,7 @@
 #   def editing_text : String
 #   def editing_text=(v : String)
 #   def editing_font_size : Int32
-#   def font : Font
+#   def font : FontMetrics
 module TextEditing
   @cursor_pos : Int32 = 0
   # Timestamp of the last keystroke — keeps the cursor solid for 0.5 s after input.

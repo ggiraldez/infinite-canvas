@@ -1,3 +1,5 @@
+require "./font_metrics"
+
 # Visual lines produced by word-wrapping.
 # Each entry: {line_text, char_offset_in_full_text_string}.
 alias TextLayoutData = Array({String, Int32})
@@ -13,10 +15,10 @@ module TextLayout
   # interpolation pivot to find each line-break in O(log n) probes instead
   # of the naïve O(L) re-measurement per line.  See the original method
   # comment in text_element.cr for a full derivation.
-  def self.compute(text : String, avail_width : Float32, spacing : Int32 = 0,
-                   &measure : String -> Int32) : TextLayoutData
+  def self.compute(text : String, avail_width : Float32, metrics : FontMetrics) : TextLayoutData
     avail_i = [avail_width, 1.0_f32].max.to_i32
     result = [] of {String, Int32}
+    spacing = metrics.spacing.to_i
     full_offset = 0
 
     text.split('\n').each do |para|
@@ -30,7 +32,7 @@ module TextLayout
       para_len = para_chars.size
 
       # One measure call per character; O(n) total for the paragraph.
-      char_ws = para_chars.map { |c| measure.call(c.to_s) }
+      char_ws = para_chars.map { |c| metrics.measure(c.to_s) }
       prefix = Array(Int32).new(para_len + 1, 0)
       (0...para_len).each { |i| prefix[i + 1] = prefix[i] + char_ws[i] }
 

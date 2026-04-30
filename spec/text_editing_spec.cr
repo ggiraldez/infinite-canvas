@@ -1,4 +1,5 @@
 require "spec"
+require "./stub_font_metrics"
 
 # Stub Raylib module
 module Raylib
@@ -9,30 +10,19 @@ end
 
 alias R = Raylib
 
-# Stub Font class
-# measure: 8 px per character, font-size-independent, no spacing.
-# This makes nearest_col_for_x deterministic: column i snaps at x = (2i+1)*4.
-class Font
-  getter size : Int32 = 20
-  getter spacing : Float32 = 0.0_f32
-
-  def measure(text : String) : Int32
-    text.size * 8
-  end
-end
-
 require "../src/text_editing"
 
 # Minimal host class — TextEditing needs editing_text r/w, editing_font_size, and font.
 # fit_content is a no-op: we test only cursor/text logic, not layout.
+# 8 px/char makes nearest_col_for_x deterministic: column i snaps at x = (2i+1)*4.
 private class Ed
   include TextEditing
 
   property editing_text : String
   property editing_font_size : Int32 = 10
 
-  def font : Font
-    @font ||= Font.new
+  def font : FontMetrics
+    @font ||= StubFontMetrics.new(char_width: 8)
   end
 
   def fit_content; end

@@ -3,20 +3,10 @@ require "../src/model"
 require "../src/text_layout"
 require "../src/render_data"
 require "../src/layout_engine"
-
-# Consistent stub measurer: per-string width includes inter-character spacing,
-# matching how Raylib behaves, so results are coherent with TextLayout.compute.
-# 10 px per char + (n-1) * (font_size / 10) px spacing for n-char strings.
-STUB_SPACING = 0
-
-private def stub_measure : Measurer
-  Proc(String, Int32).new do |s|
-    (s.size * 10 + [s.size - 1, 0].max * STUB_SPACING).to_i32
-  end
-end
+require "./stub_font_metrics"
 
 private def make_engine
-  LayoutEngine.new(stub_measure, STUB_SPACING)
+  LayoutEngine.new(StubFontMetrics.new)
 end
 
 describe LayoutEngine do

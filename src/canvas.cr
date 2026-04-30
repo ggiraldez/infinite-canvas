@@ -130,7 +130,7 @@ class Canvas
     @model = CanvasModel.new
     @history = HistoryManager.new(@model)
     @elements = [] of Element
-    @layout_engine = LayoutEngine.new(Proc(String, Int32).new { |t| @font.measure(t) }, @font.spacing.to_i)
+    @layout_engine = LayoutEngine.new(@font)
     @render_data = RenderData.new
     @camera = R::Camera2D.new(
       offset: R::Vector2.new(x: screen_width / 2.0_f32, y: screen_height / 2.0_f32),

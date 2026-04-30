@@ -1,6 +1,7 @@
 require "raylib-cr"
+require "./font_metrics"
 
-class Font
+class Font < FontMetrics
   @font : Raylib::Font
   getter size : Int32
   getter spacing : Float32

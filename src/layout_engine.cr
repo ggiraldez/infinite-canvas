@@ -12,7 +12,7 @@ class LayoutEngine
   LABEL_FONT_SIZE = 20
   LABEL_PAD_H     = 16
 
-  def initialize(@measure : Measurer, @spacing : Int32 = 0)
+  def initialize(@metrics : FontMetrics)
   end
 
   # Public entry point for laying out a single TextModel — used by Canvas
@@ -56,7 +56,7 @@ class LayoutEngine
     end
 
     if m.text.empty?
-      cursor_w = @measure.call("|")
+      cursor_w = @metrics.measure("|")
       content_w = (cursor_w + padding * 2).to_f32
       content_h = (font_size + padding * 2).to_f32
       return TextRenderData.new(
@@ -65,7 +65,7 @@ class LayoutEngine
     end
 
     lines = m.text.split('\n')
-    max_tw = lines.map { |l| @measure.call(l) }.max? || 0
+    max_tw = lines.map { |l| @metrics.measure(l) }.max? || 0
     content_w = (max_tw + padding * 2).to_f32
     content_h = (lines.size * font_size + padding * 2).to_f32
 
@@ -89,7 +89,7 @@ class LayoutEngine
 
   private def layout_rect(m : RectModel) : RectRenderData
     font_size = LABEL_FONT_SIZE
-    label_lines = m.label.split('\n').map { |line| {line, @measure.call(line)} }
+    label_lines = m.label.split('\n').map { |line| {line, @metrics.measure(line)} }
     RectRenderData.new(m.bounds, label_lines)
   end
 
@@ -183,6 +183,6 @@ class LayoutEngine
   end
 
   private def measure_line_runs(text : String, avail_w : Float32) : TextLayoutData
-    TextLayout.compute(text, avail_w, @spacing) { |s| @measure.call(s) }
+    TextLayout.compute(text, avail_w, @metrics)
   end
 end

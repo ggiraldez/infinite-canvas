@@ -1,13 +1,13 @@
 require "spec"
 require "../src/text_layout"
+require "./stub_font_metrics"
 
-# Measurer: 10 px per character, no spacing.
-# capacity = floor(avail_width / 10) chars.
+# capacity = floor(avail_width / 10) chars (spacing=0).
 # avail_width=50  → 5 chars fit  (5*10=50 ≤ 50)
 # avail_width=30  → 3 chars fit
 # avail_width=9   → 0 chars fit  (guard triggers: 1*10=10 > 9)
 private def layout(text : String, avail : Float32, spacing : Int32 = 0)
-  TextLayout.compute(text, avail, spacing) { |s| s.size * 10 }
+  TextLayout.compute(text, avail, StubFontMetrics.new(spacing_px: spacing))
 end
 
 describe TextLayout do
@@ -122,7 +122,7 @@ describe TextLayout do
     # spacing=1; capacity: 11N-1 ≤ avail
     # avail=54: 11*5-1=54 fits 5 chars; 11*6-1=65 does not
     # "hello world" (11 chars) → same break point as spacing=0 at avail=54
-    result = TextLayout.compute("hello world", 54.0, 1) { |s| s.size * 10 }
+    result = TextLayout.compute("hello world", 54.0, StubFontMetrics.new(spacing_px: 1))
     result.should eq [{"hello", 0}, {"world", 6}]
   end
 
@@ -130,7 +130,7 @@ describe TextLayout do
     # With spacing=0, avail=60 fits 6 chars → "hello " would fit and no wrap occurs.
     # With spacing=1, 11*6-1=65 > 60 → still breaks at 5 chars.
     # Demonstrate: "abcdef" with no space, avail=60, spacing=1 → breaks at 5 chars
-    result = TextLayout.compute("abcdef", 60.0, 1) { |s| s.size * 10 }
+    result = TextLayout.compute("abcdef", 60.0, StubFontMetrics.new(spacing_px: 1))
     result.should eq [{"abcde", 0}, {"f", 5}]
   end
 end
