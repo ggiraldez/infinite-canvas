@@ -1,9 +1,8 @@
 require "raylib-cr"
 require "./font"
 require "./canvas"
-require "./toolbar"
-require "./color_palette"
 require "./smooth_timer"
+require "./controls"
 
 module InfiniteCanvas
   VERSION = "0.1.0"
@@ -22,8 +21,7 @@ module InfiniteCanvas
     canvas = Canvas.new(WINDOW_WIDTH, WINDOW_HEIGHT, font)
     canvas.load
 
-    toolbar = Toolbar.new(font)
-    palette = ColorPalette.new(font)
+    controls = Controls.new(font)
 
     update_time = SmoothTimer.new
     draw_time = SmoothTimer.new
@@ -36,14 +34,17 @@ module InfiniteCanvas
         y: R.get_screen_height / 2.0_f32,
       )
 
-      palette.update(canvas)
-      toolbar.update(canvas)
-      update_time.measure { canvas.update }
+      update_time.measure {
+        controls.update(canvas)
+        canvas.update
+      }
 
       R.begin_drawing
       R.clear_background(Canvas::BACKGROUND)
       draw_time.measure { canvas.draw }
-      draw_hud(canvas, toolbar, palette, font, update_time.value, draw_time.value)
+      controls.draw(canvas)
+      draw_timing(font, update_time.value, draw_time.value)
+
       R.end_drawing
     end
 
@@ -51,13 +52,7 @@ module InfiniteCanvas
     R.close_window
   end
 
-  private def self.draw_hud(canvas : Canvas, toolbar : Toolbar, palette : ColorPalette, font : Font, update_ms : Float64, draw_ms : Float64)
-    toolbar.draw(canvas)
-    palette.draw(canvas)
-    font.draw("Elements: #{canvas.elements.size}   Zoom: #{canvas.camera.zoom.round(2)}x", 12, 12, R::GRAY)
-    if (el = canvas.selected_element).is_a?(ArrowElement)
-      font.draw("Routing: #{el.routing_style}   [Tab]", 12, 36, R::DARKGRAY)
-    end
+  def self.draw_timing(font : Font, update_ms : Float64, draw_ms : Float64)
     timing_label = "update: #{update_ms.round(2)}ms  draw: #{draw_ms.round(2)}ms"
     label_w = font.measure(timing_label)
     font.draw(timing_label, R.get_screen_width - 110 - label_w, R.get_screen_height - 30, R::GRAY)
