@@ -34,17 +34,25 @@ class Toolbar
   KEY_ACT       = R::Color.new(r: 160, g: 215, b: 255, a: 255)
 
   # Checks for a mouse click on any toolbar button. Tool buttons switch the
-  # active tool; action buttons (undo/redo) fire immediately. Blocks the canvas
-  # from processing the same press. Returns true if the click was consumed.
-  def update(canvas : Canvas) : Bool
+  # active tool; action buttons (undo/redo) fire immediately.  Returns true if
+  # the click was consumed.
+  def handle_left_press(canvas : Canvas) : Bool
     return false unless R.mouse_button_pressed?(R::MouseButton::Left)
     mouse = R.get_mouse_position
     panel_x, panel_y = panel_origin
 
+    # Consume the press if the click landed anywhere on the panel.
+    panel_rect = R::Rectangle.new(
+      x: panel_x.to_f32, y: panel_y.to_f32,
+      width: panel_total_w.to_f32, height: (BTN_H + 2 * PANEL_P).to_f32
+    )
+    if !R.check_collision_point_rec?(mouse, panel_rect)
+      return false
+    end
+
     TOOLS.each_with_index do |(tool, _, _), i|
       if R.check_collision_point_rec?(mouse, tool_btn_rect(panel_x, panel_y, i))
         canvas.switch_tool(tool)
-        canvas.block_mouse_press
         return true
       end
     end
@@ -52,26 +60,14 @@ class Toolbar
     undo_rect, redo_rect = action_btn_rects(panel_x, panel_y)
     if R.check_collision_point_rec?(mouse, undo_rect) && canvas.can_undo?
       canvas.undo
-      canvas.block_mouse_press
       return true
     end
     if R.check_collision_point_rec?(mouse, redo_rect) && canvas.can_redo?
       canvas.redo
-      canvas.block_mouse_press
       return true
     end
 
-    # Consume the press if the click landed anywhere on the panel.
-    panel_rect = R::Rectangle.new(
-      x: panel_x.to_f32, y: panel_y.to_f32,
-      width: panel_total_w.to_f32, height: (BTN_H + 2 * PANEL_P).to_f32
-    )
-    if R.check_collision_point_rec?(mouse, panel_rect)
-      canvas.block_mouse_press
-      return true
-    end
-
-    false
+    true
   end
 
   def draw(canvas : Canvas)

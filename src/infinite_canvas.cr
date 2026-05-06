@@ -34,17 +34,18 @@ module InfiniteCanvas
         y: R.get_screen_height / 2.0_f32,
       )
 
-      update_time.measure {
-        controls.update(canvas)
-        canvas.update
-      }
+      update_time.measure do
+        click_consumed = controls.handle_left_press(canvas)
+        canvas.handle_input(click_consumed)
+      end
 
       R.begin_drawing
-      R.clear_background(Canvas::BACKGROUND)
-      draw_time.measure { canvas.draw }
-      controls.draw(canvas)
+      draw_time.measure do
+        R.clear_background(Canvas::BACKGROUND)
+        canvas.draw
+        controls.draw(canvas)
+      end
       draw_timing(font, update_time.value, draw_time.value)
-
       R.end_drawing
     end
 

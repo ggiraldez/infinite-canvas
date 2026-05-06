@@ -30,13 +30,13 @@ class Canvas
     )
   end
 
-  private def handle_left_mouse
+  private def handle_left_mouse(left_press_consumed = false)
     mouse_screen = R.get_mouse_position
     mouse_world = R.get_screen_to_world_2d(mouse_screen, @camera)
 
     if R.mouse_button_pressed?(R::MouseButton::Left)
-      if @block_mouse_press
-        @block_mouse_press = false
+      if left_press_consumed
+        # The click was already consumed by other parts of the UI
         return
       end
       now = R.get_time

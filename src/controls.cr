@@ -8,9 +8,9 @@ class Controls
     @palette = ColorPalette.new(@font)
   end
 
-  def update(canvas : Canvas)
-    @toolbar.update(canvas)
-    @palette.update(canvas)
+  # Checks for presses with the left mouse button. Returns true if a click was consumed.
+  def handle_left_press(canvas : Canvas) : Bool
+    @toolbar.handle_left_press(canvas) || @palette.handle_left_press(canvas)
   end
 
   def draw(canvas : Canvas)

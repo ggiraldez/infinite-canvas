@@ -43,32 +43,39 @@ class ColorPalette
     Scheme.new("Dark", cd(50, 55, 65, 200), cd(20, 20, 25, 255), cd(255, 255, 255, 230)),
   ]
 
-  # Returns true if the click was consumed by the palette.
-  def update(canvas : Canvas) : Bool
-    return false unless canvas.selected_element.is_a?(RectElement)
+  # Check for mouse clicks on any swatch of the palette. Returns true if the
+  # click was consumed by the palette.
+  def handle_left_press(canvas : Canvas) : Bool
+    return false unless filter_selected_element(canvas)
     return false unless R.mouse_button_pressed?(R::MouseButton::Left)
     mouse = R.get_mouse_position
     px, py = panel_origin
+
+    if !R.check_collision_point_rec?(mouse, panel_rect(px, py))
+      return false
+    end
 
     SCHEMES.each_with_index do |scheme, i|
       if R.check_collision_point_rec?(mouse, swatch_rect(px, py, i))
         el = canvas.selected_element.as(RectElement)
         canvas.emit(ChangeRectColorEvent.new(el.id, scheme.fill, scheme.stroke, scheme.label))
-        canvas.block_mouse_press
         return true
       end
     end
 
-    if R.check_collision_point_rec?(mouse, panel_rect(px, py))
-      canvas.block_mouse_press
-      return true
-    end
+    true
+  end
 
-    false
+  # Checks the selected element on the canvas and returns it if we can act on
+  # it, ie. if it's a RectElement
+  def filter_selected_element(canvas : Canvas) : RectElement?
+    if (el = canvas.selected_element).is_a?(RectElement)
+      el
+    end
   end
 
   def draw(canvas : Canvas) : Nil
-    return unless (el = canvas.selected_element).is_a?(RectElement)
+    return unless el = filter_selected_element(canvas)
     px, py = panel_origin
     R.draw_rectangle_rec(panel_rect(px, py), BG)
     R.draw_rectangle_lines_ex(panel_rect(px, py), 1.0_f32, BORDER)

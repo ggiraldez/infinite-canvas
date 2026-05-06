@@ -69,10 +69,6 @@ class Canvas
     @mode = IdleMode.new(tool)
   end
 
-  def block_mouse_press
-    @block_mouse_press = true
-  end
-
   def selected_element : Element?
     (idx = @selected_index) ? @elements[idx]? : nil
   end
@@ -83,10 +79,6 @@ class Canvas
 
   @selected_index : Int32? = nil
   @selected_indices : Array(Int32) = [] of Int32
-  # Set by external UI (e.g. toolbar) to suppress the canvas from processing a
-  # left-press on the same frame — prevents a toolbar click from also acting on
-  # whatever canvas content sits beneath it.
-  @block_mouse_press : Bool = false
 
   # ── Event-sourcing state ──────────────────────────────────────────────────
   # @model is the authoritative canvas state; @elements is a derived cache.
@@ -168,10 +160,10 @@ class Canvas
     STDERR.puts "Warning: could not load canvas — #{ex.message}"
   end
 
-  def update
+  def handle_input(left_press_consumed = false)
     handle_pan
     handle_zoom
-    handle_left_mouse
+    handle_left_mouse(left_press_consumed)
     handle_text_input
     handle_escape
     handle_delete
